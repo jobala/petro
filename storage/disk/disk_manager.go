@@ -26,8 +26,7 @@ func (dm *diskManager) writePage(pageId int, data []byte) error {
 		dm.pages[pageId] = offset
 	}
 
-	k, err := dm.dbFile.WriteAt(data, int64(offset))
-	fmt.Println("wrote bytes: ", k)
+	_, err := dm.dbFile.WriteAt(data, int64(offset))
 
 	if err != nil {
 		return fmt.Errorf("error writing at offset %d: %v", offset, err)
@@ -57,7 +56,10 @@ func (dm *diskManager) readPage(pageId int) ([]byte, error) {
 }
 
 func (dm *diskManager) deletePage(pageId int) {
-
+	if offset, ok := dm.pages[pageId]; ok {
+		dm.freeSlots = append(dm.freeSlots, offset)
+		delete(dm.pages, pageId)
+	}
 }
 
 func (dm *diskManager) allocatePage() (int, error) {

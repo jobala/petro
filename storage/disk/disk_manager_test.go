@@ -92,7 +92,20 @@ func TestDiskManager(t *testing.T) {
 
 	})
 
-	t.Run("test page deletion", func(t *testing.T) {})
+	t.Run("test page deletion", func(t *testing.T) {
+		dbFile := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(dbFile.Name())
+		})
+
+		dm := NewDiskManager(dbFile)
+		dm.pageCapacity = 1
+		dm.pages[1] = 0
+		assert.Equal(t, len(dm.freeSlots), 0)
+
+		dm.deletePage(1)
+		assert.Equal(t, len(dm.freeSlots), 1)
+	})
 }
 
 func CreateDbFile(t *testing.T) *os.File {
