@@ -17,11 +17,11 @@ func TestDiskManager(t *testing.T) {
 		})
 
 		dm := NewDiskManager(dbFile)
-		offset1, err := dm.allocate()
+		offset1, err := dm.allocatePage()
 		dm.pages[0] = offset1
 		assert.NoError(t, err)
 
-		offset2, err := dm.allocate()
+		offset2, err := dm.allocatePage()
 		dm.pages[1] = offset2
 		assert.NoError(t, err)
 
@@ -38,7 +38,7 @@ func TestDiskManager(t *testing.T) {
 		dm := NewDiskManager(dbFile)
 		dm.freeSlots = []int{8192}
 
-		offset, err := dm.allocate()
+		offset, err := dm.allocatePage()
 		assert.NoError(t, err)
 
 		assert.Equal(t, 8192, offset)
@@ -46,16 +46,11 @@ func TestDiskManager(t *testing.T) {
 	})
 
 	t.Run("test db file gets resized when full", func(t *testing.T) {
+		// creates a 4kb file
 		dbFile := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(dbFile.Name())
 		})
-
-		// create 4kb file
-		_ = os.Truncate(dbFile.Name(), PAGE_SIZE)
-		fileInfo, err := os.Stat(dbFile.Name())
-		assert.NoError(t, err)
-		assert.Equal(t, int64(PAGE_SIZE), fileInfo.Size())
 
 		dm := NewDiskManager(dbFile)
 		dm.pageCapacity = 1
@@ -63,21 +58,40 @@ func TestDiskManager(t *testing.T) {
 			0: 0,
 		}
 
-		offset, err := dm.allocate()
+		offset, err := dm.allocatePage()
 		assert.NoError(t, err)
 
 		assert.Equal(t, 4096, offset)
 		assert.Equal(t, 2, dm.pageCapacity)
 
 		// dbFile is increased in size
-		fileInfo, err = os.Stat(dbFile.Name())
+		fileInfo, err := os.Stat(dbFile.Name())
 		assert.NoError(t, err)
 		assert.Equal(t, int64(PAGE_SIZE)*2, fileInfo.Size())
+	})
+
+	t.Run("test reading and writing a page", func(t *testing.T) {
+		dbFile := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(dbFile.Name())
+		})
+
+		dm := NewDiskManager(dbFile)
+		dm.pageCapacity = 1
+
+		buf := make([]byte, PAGE_SIZE)
+		copy(buf, []byte("hello world"))
+
+		err := dm.writePage(1, buf)
+		assert.NoError(t, err)
+
+		res, err := dm.readPage(1)
+		assert.NoError(t, err)
+
+		assert.Equal(t, res, buf)
 
 	})
 
-	t.Run("test writing a page", func(t *testing.T) {})
-	t.Run("test reading a page", func(t *testing.T) {})
 	t.Run("test page deletion", func(t *testing.T) {})
 }
 
@@ -85,10 +99,15 @@ func CreateDbFile(t *testing.T) *os.File {
 	t.Helper()
 	dbFile := path.Join(t.TempDir(), "test.db")
 
-	file, err := os.OpenFile(dbFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(dbFile, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		panic(fmt.Sprintf("failed creating db file\n%v", err))
 	}
 
+	// create 4kb file
+	_ = os.Truncate(file.Name(), PAGE_SIZE)
+	fileInfo, err := os.Stat(file.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, int64(PAGE_SIZE), fileInfo.Size())
 	return file
 }
