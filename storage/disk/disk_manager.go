@@ -1,10 +1,19 @@
 package disk
 
-func newDiskManager(file string) *diskManager {
+import (
+	"fmt"
+	"os"
+)
+
+func NewDiskManager(file *os.File) *diskManager {
 	return &diskManager{
-		dbFile: file,
+		dbFile:       file,
+		pageCapacity: DEFAULT_PAGE_CAPACITY,
+		freeSlots:    []int{},
+		pages:        map[int]int{},
 	}
 }
+
 func (dm *diskManager) writePage(pageId int, data []byte) (int, error) {
 	return 0, nil
 }
@@ -17,19 +26,31 @@ func (dm *diskManager) deletePage(pageId int) {
 
 }
 
-func (dm *diskManager) allocate() int {
-	/*
-		1. Check if we can get page from freePages
-		2. If we can return the offset
-		3. If we can't check if we are within database size limits
-		4. If we are allocate pages
-		5. If we are beyond database limits, resize database file and allocate new page
-	*/
-	return 0
+func (dm *diskManager) allocate() (int, error) {
+	if len(dm.freeSlots) > 0 {
+		offset := dm.freeSlots[0]
+		dm.freeSlots = dm.freeSlots[1:]
+
+		return offset, nil
+	}
+
+	if len(dm.pages)+1 > dm.pageCapacity {
+		dm.pageCapacity *= 2
+		if err := os.Truncate(dm.dbFile.Name(), int64(dm.pageCapacity)*PAGE_SIZE); err != nil {
+			return -1, fmt.Errorf("error resizing db file: %v", err)
+		}
+	}
+
+	return dm.getNextOffset(), nil
+}
+
+func (dm *diskManager) getNextOffset() int {
+	return len(dm.pages) * PAGE_SIZE
 }
 
 type diskManager struct {
-	dbFile    string
-	pages     map[int]int
-	freeSlots []int
+	dbFile       *os.File
+	pages        map[int]int
+	freeSlots    []int
+	pageCapacity int
 }
