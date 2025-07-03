@@ -40,9 +40,8 @@ func (ds *DiskScheduler) handleDiskReq() {
 }
 
 func (ds *DiskScheduler) pageWorker(pageId int, reqQueue chan DiskReq) {
-	for {
-		req, ok := <-reqQueue
-		if !ok {
+	for req := range reqQueue {
+		if req.PageId == INVALID_PAGE_ID {
 			break
 		}
 
