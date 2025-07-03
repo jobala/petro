@@ -40,30 +40,33 @@ func (ds *DiskScheduler) handleDiskReq() {
 }
 
 func (ds *DiskScheduler) pageWorker(pageId int, reqQueue chan DiskReq) {
-	for req := range reqQueue {
-		if req.PageId == INVALID_PAGE_ID {
-			break
+	for {
+		select {
+		case req := <-reqQueue:
+
+			if req.Write {
+				if err := ds.diskManager.writePage(req.PageId, req.Data); err != nil {
+					req.RespCh <- DiskResp{Success: false}
+				} else {
+					req.RespCh <- DiskResp{Success: true}
+				}
+			} else {
+				if data, err := ds.diskManager.readPage(req.PageId); err != nil {
+					req.RespCh <- DiskResp{Success: false}
+				} else {
+					req.RespCh <- DiskResp{Success: true, Data: data}
+				}
+			}
+
+		default:
+			// done handling request for this page, can remove it from queue
+			ds.pageQueueMu.Lock()
+			delete(ds.pageQueue, pageId)
+			ds.pageQueueMu.Unlock()
 		}
 
-		if req.Write {
-			if err := ds.diskManager.writePage(req.PageId, req.Data); err != nil {
-				req.RespCh <- DiskResp{Success: false}
-			} else {
-				req.RespCh <- DiskResp{Success: true}
-			}
-		} else {
-			if data, err := ds.diskManager.readPage(req.PageId); err != nil {
-				req.RespCh <- DiskResp{Success: false}
-			} else {
-				req.RespCh <- DiskResp{Success: true, Data: data}
-			}
-		}
 	}
 
-	// done handling request for this page, can remove it from queue
-	ds.pageQueueMu.Lock()
-	delete(ds.pageQueue, pageId)
-	ds.pageQueueMu.Unlock()
 }
 
 type DiskScheduler struct {

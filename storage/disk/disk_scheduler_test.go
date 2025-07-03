@@ -69,6 +69,8 @@ func TestDiskScheduler(t *testing.T) {
 		<-writeReq.RespCh
 		res := <-readReq.RespCh
 		assert.Equal(t, res.Data, data)
+
+		time.Sleep(5 * time.Second)
 	})
 
 }
