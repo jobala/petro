@@ -5,17 +5,17 @@ import (
 	"os"
 )
 
-func NewDiskManager(file *os.File) *diskManager {
+func NewManager(file *os.File) *diskManager {
 	return &diskManager{
 		dbFile:       file,
 		pageCapacity: DEFAULT_PAGE_CAPACITY,
-		freeSlots:    []int{},
-		pages:        map[int]int{},
+		freeSlots:    []int64{},
+		pages:        map[int]int64{},
 	}
 }
 
 func (dm *diskManager) writePage(pageId int, data []byte) error {
-	var offset int
+	var offset int64
 	offset, pageFound := dm.pages[pageId]
 
 	if !pageFound {
@@ -26,7 +26,7 @@ func (dm *diskManager) writePage(pageId int, data []byte) error {
 		dm.pages[pageId] = offset
 	}
 
-	_, err := dm.dbFile.WriteAt(data, int64(offset))
+	_, err := dm.dbFile.WriteAt(data, offset)
 
 	if err != nil {
 		return fmt.Errorf("error writing at offset %d: %v", offset, err)
@@ -36,7 +36,7 @@ func (dm *diskManager) writePage(pageId int, data []byte) error {
 }
 
 func (dm *diskManager) readPage(pageId int) ([]byte, error) {
-	var offset int
+	var offset int64
 	offset, pageFound := dm.pages[pageId]
 
 	if !pageFound {
@@ -48,7 +48,7 @@ func (dm *diskManager) readPage(pageId int) ([]byte, error) {
 	}
 
 	buf := make([]byte, PAGE_SIZE)
-	if _, err := dm.dbFile.ReadAt(buf, int64(offset)); err != nil {
+	if _, err := dm.dbFile.ReadAt(buf, offset); err != nil {
 		return nil, fmt.Errorf("error reading from offset %d: %v", offset, err)
 	}
 
@@ -62,7 +62,7 @@ func (dm *diskManager) deletePage(pageId int) {
 	}
 }
 
-func (dm *diskManager) allocatePage() (int, error) {
+func (dm *diskManager) allocatePage() (int64, error) {
 	if len(dm.freeSlots) > 0 {
 		offset := dm.freeSlots[0]
 		dm.freeSlots = dm.freeSlots[1:]
@@ -80,13 +80,13 @@ func (dm *diskManager) allocatePage() (int, error) {
 	return dm.getNextOffset(), nil
 }
 
-func (dm *diskManager) getNextOffset() int {
-	return len(dm.pages) * PAGE_SIZE
+func (dm *diskManager) getNextOffset() int64 {
+	return int64(len(dm.pages) * PAGE_SIZE)
 }
 
 type diskManager struct {
 	dbFile       *os.File
-	pages        map[int]int
-	freeSlots    []int
+	pages        map[int]int64
+	freeSlots    []int64
 	pageCapacity int
 }

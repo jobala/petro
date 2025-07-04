@@ -16,7 +16,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		offset1, err := dm.allocatePage()
 		dm.pages[0] = offset1
 		assert.NoError(t, err)
@@ -25,8 +25,8 @@ func TestDiskManager(t *testing.T) {
 		dm.pages[1] = offset2
 		assert.NoError(t, err)
 
-		assert.Equal(t, 0, offset1)
-		assert.Equal(t, 4096, offset2)
+		assert.Equal(t, int64(0), offset1)
+		assert.Equal(t, int64(4096), offset2)
 	})
 
 	t.Run("allocate reuses free slots", func(t *testing.T) {
@@ -35,13 +35,13 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
-		dm.freeSlots = []int{8192}
+		dm := NewManager(dbFile)
+		dm.freeSlots = []int64{8192}
 
 		offset, err := dm.allocatePage()
 		assert.NoError(t, err)
 
-		assert.Equal(t, 8192, offset)
+		assert.Equal(t, int64(8192), offset)
 		assert.Empty(t, dm.freeSlots)
 	})
 
@@ -52,16 +52,16 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
-		dm.pages = map[int]int{
+		dm.pages = map[int]int64{
 			0: 0,
 		}
 
 		offset, err := dm.allocatePage()
 		assert.NoError(t, err)
 
-		assert.Equal(t, 4096, offset)
+		assert.Equal(t, int64(4096), offset)
 		assert.Equal(t, 2, dm.pageCapacity)
 
 		// dbFile is increased in size
@@ -76,7 +76,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
 
 		buf := make([]byte, PAGE_SIZE)
@@ -98,7 +98,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
 		dm.pages[1] = 0
 		assert.Equal(t, len(dm.freeSlots), 0)
