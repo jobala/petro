@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func NewDiskManager(file *os.File) *diskManager {
+func NewManager(file *os.File) *diskManager {
 	return &diskManager{
 		dbFile:       file,
 		pageCapacity: DEFAULT_PAGE_CAPACITY,

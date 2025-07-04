@@ -15,7 +15,7 @@ func TestDiskScheduler(t *testing.T) {
 			_ = os.Remove(file.Name())
 		})
 
-		diskMgr := NewDiskManager(file)
+		diskMgr := NewManager(file)
 		ds := NewScheduler(diskMgr)
 
 		resCh := make(chan DiskResp)
@@ -42,7 +42,7 @@ func TestDiskScheduler(t *testing.T) {
 			_ = os.Remove(file.Name())
 		})
 
-		diskMgr := NewDiskManager(file)
+		diskMgr := NewManager(file)
 		ds := NewScheduler(diskMgr)
 
 		resCh := make(chan DiskResp)

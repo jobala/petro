@@ -16,7 +16,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		offset1, err := dm.allocatePage()
 		dm.pages[0] = offset1
 		assert.NoError(t, err)
@@ -35,7 +35,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.freeSlots = []int{8192}
 
 		offset, err := dm.allocatePage()
@@ -52,7 +52,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
 		dm.pages = map[int]int{
 			0: 0,
@@ -76,7 +76,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
 
 		buf := make([]byte, PAGE_SIZE)
@@ -98,7 +98,7 @@ func TestDiskManager(t *testing.T) {
 			_ = os.Remove(dbFile.Name())
 		})
 
-		dm := NewDiskManager(dbFile)
+		dm := NewManager(dbFile)
 		dm.pageCapacity = 1
 		dm.pages[1] = 0
 		assert.Equal(t, len(dm.freeSlots), 0)
