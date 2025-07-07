@@ -4,4 +4,4 @@ A simple key value storage engine
 
 ## Design Notes
 
-- [Disk Management](https://japhethobala.com/technical/db-disk-mgmt)
+- [Disk Management](https://japhethobala.com/posts/technical/db-disk-mgmt)
