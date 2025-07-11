@@ -1,15 +1,18 @@
 package buffer
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
-func NewLrukReplacer(capacity, k int) *lruKReplacer {
+func NewLrukReplacer(capacity, k int) *lrukReplacer {
 	head := &lrukNode{frameId: INVALID_FRAME_ID}
 	tail := &lrukNode{frameId: INVALID_FRAME_ID}
 
 	head.next = tail
 	tail.prev = head
 
-	return &lruKReplacer{
+	return &lrukReplacer{
 		k:             k,
 		mu:            sync.Mutex{},
 		nodeStore:     map[int]*lrukNode{},
@@ -21,25 +24,19 @@ func NewLrukReplacer(capacity, k int) *lruKReplacer {
 	}
 }
 
-func (lru *lruKReplacer) addNode(newNode *lrukNode) {
+func (lru *lrukReplacer) remove(frameId int) error {
 	lru.mu.Lock()
 	defer lru.mu.Unlock()
 
-	// add node to doubly linkedlist
-	tmp := lru.head.next
-	lru.head.next = newNode
-	newNode.next = tmp
-	tmp.prev = newNode
+	node, ok := lru.nodeStore[frameId]
+	if !ok {
+		return nil
+	}
 
-	lru.nodeStore[newNode.frameId] = newNode
-	lru.currSize += 1
-}
+	if !node.isEvictable {
+		return fmt.Errorf("evicting a non-evictable frame")
+	}
 
-func (lru *lruKReplacer) remove(frameId int) {
-	lru.mu.Lock()
-	defer lru.mu.Unlock()
-
-	node := lru.nodeStore[frameId]
 	back := node.prev
 	front := node.next
 
@@ -47,10 +44,12 @@ func (lru *lruKReplacer) remove(frameId int) {
 	front.prev = back
 
 	delete(lru.nodeStore, frameId)
-	lru.currSize -= 1
+	lru.currSize += 1
+
+	return nil
 }
 
-func (lru *lruKReplacer) recordAccess(frameId int) {
+func (lru *lrukReplacer) recordAccess(frameId int) {
 	lru.mu.Lock()
 	defer lru.mu.Unlock()
 
@@ -58,16 +57,34 @@ func (lru *lruKReplacer) recordAccess(frameId int) {
 	node.addTimestamp(lru.currTimestamp)
 
 	// move to front of queue
-	lru.remove(frameId)
+	lru.removeNode(node)
 	lru.addNode(node)
 }
 
-func (lru *lruKReplacer) setEvictable(frameId int, setEvictable bool) {}
-func (lru *lruKReplacer) evict()                                      {}
+func (lru *lrukReplacer) removeNode(node *lrukNode) {
+	back := node.prev
+	front := node.next
 
-func (lru *lruKReplacer) size() int { return lru.currSize }
+	back.next = front
+	front.prev = back
+}
 
-type lruKReplacer struct {
+func (lru *lrukReplacer) addNode(newNode *lrukNode) {
+	// add node to doubly linkedlist
+	tmp := lru.head.next
+	lru.head.next = newNode
+	newNode.next = tmp
+	tmp.prev = newNode
+
+	lru.nodeStore[newNode.frameId] = newNode
+}
+
+func (lru *lrukReplacer) setEvictable(frameId int, setEvictable bool) {}
+func (lru *lrukReplacer) evict()                                      {}
+
+func (lru *lrukReplacer) size() int { return lru.currSize }
+
+type lrukReplacer struct {
 	mu            sync.Mutex
 	nodeStore     map[int]*lrukNode
 	replacerSize  int
