@@ -41,13 +41,108 @@ func TestLrukReplacer(t *testing.T) {
 	t.Run("accessing a node moves it to the front of the queue", func(t *testing.T) {
 		replacer := NewLrukReplacer(5, 5)
 
-		replacer.addNode(&lrukNode{frameId: 1, k: 5})
-		replacer.addNode(&lrukNode{frameId: 2, k: 5})
-		replacer.addNode(&lrukNode{frameId: 3, k: 5})
+		replacer.addNode(&lrukNode{frameId: 1})
+		replacer.addNode(&lrukNode{frameId: 2})
+		replacer.addNode(&lrukNode{frameId: 3})
 		assert.Equal(t, lruToArr(replacer.head.next), []int{3, 2, 1})
 
 		replacer.recordAccess(1)
 		assert.Equal(t, lruToArr(replacer.head.next), []int{1, 3, 2})
+	})
+}
+
+func TestEviction(t *testing.T) {
+	t.Run("only evicts evictable nodes", func(t *testing.T) {
+		replacer := NewLrukReplacer(5, 5)
+
+		replacer.addNode(&lrukNode{frameId: 1})
+		replacer.addNode(&lrukNode{frameId: 2})
+		replacer.addNode(&lrukNode{frameId: 3})
+
+		replacer.recordAccess(2)
+		replacer.recordAccess(3)
+		replacer.recordAccess(1)
+
+		evicted, err := replacer.evict()
+		assert.NoError(t, err)
+		assert.Equal(t, evicted, INVALID_FRAME_ID)
+	})
+
+	t.Run("prefers to evict node with < k accesses", func(t *testing.T) {
+		replacer := NewLrukReplacer(5, 2)
+
+		replacer.addNode(&lrukNode{frameId: 1})
+		replacer.addNode(&lrukNode{frameId: 2})
+		replacer.addNode(&lrukNode{frameId: 3})
+
+		replacer.recordAccess(2)
+
+		// access 3 k times, k = 2
+		replacer.recordAccess(3)
+		replacer.recordAccess(3)
+
+		// access 1 k times, k = 2
+		replacer.recordAccess(1)
+		replacer.recordAccess(1)
+
+		replacer.setEvictable(1, true)
+		replacer.setEvictable(2, true)
+		replacer.setEvictable(3, true)
+
+		evicted, err := replacer.evict()
+		assert.NoError(t, err)
+		assert.Equal(t, evicted, 2)
+	})
+
+	t.Run("prefers to evict oldest node if all nodes have < k access", func(t *testing.T) {
+		replacer := NewLrukReplacer(5, 2)
+
+		replacer.addNode(&lrukNode{frameId: 1})
+		replacer.addNode(&lrukNode{frameId: 2})
+		replacer.addNode(&lrukNode{frameId: 3})
+
+		// all nodes have < k access, k = 2
+		replacer.recordAccess(2)
+		replacer.recordAccess(3)
+		replacer.recordAccess(1)
+
+		replacer.setEvictable(1, true)
+		replacer.setEvictable(2, true)
+		replacer.setEvictable(3, true)
+
+		evicted, err := replacer.evict()
+		assert.NoError(t, err)
+		assert.Equal(t, evicted, 2)
+
+	})
+
+	t.Run("prefers to evict oldest node if all nodes have k access", func(t *testing.T) {
+
+		replacer := NewLrukReplacer(5, 2)
+
+		replacer.addNode(&lrukNode{frameId: 1})
+		replacer.addNode(&lrukNode{frameId: 2})
+		replacer.addNode(&lrukNode{frameId: 3})
+
+		// access 3 k times, k = 2
+		replacer.recordAccess(3)
+		replacer.recordAccess(3)
+
+		// access 2 k times, k = 2
+		replacer.recordAccess(2)
+		replacer.recordAccess(2)
+
+		// access 1 k times, k = 2
+		replacer.recordAccess(1)
+		replacer.recordAccess(1)
+
+		replacer.setEvictable(1, true)
+		replacer.setEvictable(2, true)
+		replacer.setEvictable(3, true)
+
+		evicted, err := replacer.evict()
+		assert.NoError(t, err)
+		assert.Equal(t, evicted, 3)
 	})
 }
 

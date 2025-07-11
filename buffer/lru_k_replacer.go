@@ -24,6 +24,82 @@ func NewLrukReplacer(capacity, k int) *lrukReplacer {
 	}
 }
 
+func (lru *lrukReplacer) recordAccess(frameId int) {
+	lru.mu.Lock()
+	node := lru.nodeStore[frameId]
+	node.addTimestamp(lru.currTimestamp)
+	lru.mu.Unlock()
+
+	// move to front of queue
+	lru.removeNode(node)
+	lru.addNode(node)
+}
+
+func (lru *lrukReplacer) setEvictable(frameId int, evictable bool) {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
+	node, ok := lru.nodeStore[frameId]
+	if !ok {
+		return
+	}
+
+	if node.isEvictable && !evictable {
+		node.isEvictable = evictable
+		lru.currSize -= 1
+	}
+
+	if !node.isEvictable && evictable {
+		node.isEvictable = evictable
+		lru.currSize += 1
+	}
+}
+
+func (lru *lrukReplacer) evict() (int, error) {
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
+	var node *lrukNode
+	curr := lru.tail
+
+	for curr != nil {
+		if curr.isEvictable {
+			node = curr
+			break
+		}
+
+		curr = curr.prev
+	}
+
+	// no evictable nodes found
+	if curr == nil {
+		return INVALID_FRAME_ID, nil
+	}
+
+	// continue search for better eviction candidate
+	curr = curr.prev
+	for curr != lru.head {
+		if !curr.isEvictable {
+			curr = curr.prev
+			continue
+		}
+
+		if !curr.hasKAccess() && node.hasKAccess() {
+			node = curr
+		} else if !curr.hasKAccess() && !node.hasKAccess() && curr.kthAccess() < node.kthAccess() {
+			node = curr
+		} else if curr.hasKAccess() && node.hasKAccess() && curr.kthAccess() < node.kthAccess() {
+			node = curr
+		}
+
+		curr = curr.prev
+	}
+
+	frameId := node.frameId
+
+	return frameId, nil
+}
+
 func (lru *lrukReplacer) remove(frameId int) error {
 	lru.mu.Lock()
 	defer lru.mu.Unlock()
@@ -49,17 +125,7 @@ func (lru *lrukReplacer) remove(frameId int) error {
 	return nil
 }
 
-func (lru *lrukReplacer) recordAccess(frameId int) {
-	lru.mu.Lock()
-	defer lru.mu.Unlock()
-
-	node := lru.nodeStore[frameId]
-	node.addTimestamp(lru.currTimestamp)
-
-	// move to front of queue
-	lru.removeNode(node)
-	lru.addNode(node)
-}
+func (lru *lrukReplacer) size() int { return lru.currSize }
 
 func (lru *lrukReplacer) removeNode(node *lrukNode) {
 	back := node.prev
@@ -70,19 +136,20 @@ func (lru *lrukReplacer) removeNode(node *lrukNode) {
 }
 
 func (lru *lrukReplacer) addNode(newNode *lrukNode) {
-	// add node to doubly linkedlist
+	lru.mu.Lock()
+	defer lru.mu.Unlock()
+
+	newNode.k = lru.k
+
 	tmp := lru.head.next
 	lru.head.next = newNode
+	newNode.prev = lru.head
+
 	newNode.next = tmp
 	tmp.prev = newNode
 
 	lru.nodeStore[newNode.frameId] = newNode
 }
-
-func (lru *lrukReplacer) setEvictable(frameId int, setEvictable bool) {}
-func (lru *lrukReplacer) evict()                                      {}
-
-func (lru *lrukReplacer) size() int { return lru.currSize }
 
 type lrukReplacer struct {
 	mu            sync.Mutex
