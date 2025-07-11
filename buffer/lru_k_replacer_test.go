@@ -75,8 +75,6 @@ func TestEviction(t *testing.T) {
 		replacer.addNode(&lrukNode{frameId: 2})
 		replacer.addNode(&lrukNode{frameId: 3})
 
-		replacer.recordAccess(2)
-
 		// access 3 k times, k = 2
 		replacer.recordAccess(3)
 		replacer.recordAccess(3)
@@ -84,6 +82,9 @@ func TestEviction(t *testing.T) {
 		// access 1 k times, k = 2
 		replacer.recordAccess(1)
 		replacer.recordAccess(1)
+
+		// this should be evicted, although it is the most recent
+		replacer.recordAccess(2)
 
 		replacer.setEvictable(1, true)
 		replacer.setEvictable(2, true)
@@ -118,7 +119,6 @@ func TestEviction(t *testing.T) {
 	})
 
 	t.Run("prefers to evict oldest node if all nodes have k access", func(t *testing.T) {
-
 		replacer := NewLrukReplacer(5, 2)
 
 		replacer.addNode(&lrukNode{frameId: 1})
