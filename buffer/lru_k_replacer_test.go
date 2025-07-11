@@ -109,6 +109,7 @@ func TestEviction(t *testing.T) {
 		replacer.setEvictable(1, true)
 		replacer.setEvictable(2, true)
 		replacer.setEvictable(3, true)
+		assert.Equal(t, replacer.size(), 3)
 
 		evicted, err := replacer.evict()
 		assert.NoError(t, err)
@@ -139,6 +140,7 @@ func TestEviction(t *testing.T) {
 		replacer.setEvictable(1, true)
 		replacer.setEvictable(2, true)
 		replacer.setEvictable(3, true)
+		assert.Equal(t, replacer.size(), 3)
 
 		evicted, err := replacer.evict()
 		assert.NoError(t, err)
