@@ -26,6 +26,7 @@ func NewLrukReplacer(capacity, k int) *lrukReplacer {
 
 func (lru *lrukReplacer) recordAccess(frameId int) {
 	lru.mu.Lock()
+	lru.currTimestamp += 1
 	node := lru.nodeStore[frameId]
 	node.addTimestamp(lru.currTimestamp)
 	lru.mu.Unlock()

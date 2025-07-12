@@ -115,7 +115,6 @@ func TestEviction(t *testing.T) {
 		evicted, err := replacer.evict()
 		assert.NoError(t, err)
 		assert.Equal(t, evicted, 2)
-
 	})
 
 	t.Run("prefers to evict oldest node if all nodes have k access", func(t *testing.T) {
