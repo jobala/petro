@@ -1,6 +1,7 @@
 package buffer
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path"
@@ -68,9 +69,7 @@ func TestBufferPoolManager(t *testing.T) {
 		for i := range len(content) {
 			res, err := bufferMgr.ReadPage(int64(i + 1))
 			assert.NoError(t, err)
-
-			fmt.Printf("retrieved data %s from page %d\n", string(res), i+1)
-			// assert.Equal(t, strings.TrimSpace(string(res)), content[i])
+			assert.Equal(t, string(bytes.Trim(res, "\x00")), content[i])
 		}
 
 		// page id 1, should have been evicted
