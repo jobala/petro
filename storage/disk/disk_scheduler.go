@@ -17,8 +17,19 @@ func NewScheduler(diskManager *diskManager) *DiskScheduler {
 	return ds
 }
 
-func (ds *DiskScheduler) Schedule(req DiskReq) {
+func NewRequest(pageId int64, data []byte, isWrite bool) DiskReq {
+	respCh := make(chan DiskResp)
+	return DiskReq{
+		PageId: int(pageId),
+		Data:   data,
+		Write:  false,
+		RespCh: respCh,
+	}
+}
+
+func (ds *DiskScheduler) Schedule(req DiskReq) <-chan DiskResp {
 	ds.reqCh <- req
+	return req.RespCh
 }
 
 func (ds *DiskScheduler) handleDiskReq() {

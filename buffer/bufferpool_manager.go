@@ -70,14 +70,8 @@ func (b *BufferpoolManager) ReadPage(pageId int64) ([]byte, error) {
 	frame.reset()
 	frame.pin()
 	frame.pageId = pageId
-	respCh := make(chan disk.DiskResp)
-	diskReq := disk.DiskReq{
-		PageId: int(frame.pageId),
-		Data:   frame.data,
-		Write:  false,
-		RespCh: respCh,
-	}
-	b.diskScheduler.Schedule(diskReq)
+	diskReq := disk.NewRequest(pageId, nil, false)
+	respCh := b.diskScheduler.Schedule(diskReq)
 	resp := <-respCh
 	copy(frame.data, resp.Data)
 
