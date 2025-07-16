@@ -27,13 +27,19 @@ func NewLrukReplacer(capacity, k int) *lrukReplacer {
 func (lru *lrukReplacer) recordAccess(frameId int) {
 	lru.mu.Lock()
 	lru.currTimestamp += 1
-	node := lru.nodeStore[frameId]
-	node.addTimestamp(lru.currTimestamp)
+	node, ok := lru.nodeStore[frameId]
 	lru.mu.Unlock()
 
-	// move to front of queue
-	lru.removeNode(node)
-	lru.addNode(node)
+	if ok {
+		node.addTimestamp(lru.currTimestamp)
+
+		// move to front of queue
+		lru.removeNode(node)
+		lru.addNode(node)
+		return
+	}
+
+	lru.addNode(&lrukNode{frameId: frameId})
 }
 
 func (lru *lrukReplacer) setEvictable(frameId int, evictable bool) {
