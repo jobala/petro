@@ -10,14 +10,26 @@ func NewScheduler(diskManager *diskManager) *DiskScheduler {
 		pageQueue:   make(map[int]chan DiskReq),
 		pageQueueMu: sync.Mutex{},
 		diskManager: diskManager,
+		mu:          sync.Mutex{},
 	}
 
 	go ds.handleDiskReq()
 	return ds
 }
 
-func (ds *DiskScheduler) Schedule(req DiskReq) {
+func NewRequest(pageId int64, data []byte, isWrite bool) DiskReq {
+	respCh := make(chan DiskResp)
+	return DiskReq{
+		PageId: int(pageId),
+		Data:   data,
+		Write:  false,
+		RespCh: respCh,
+	}
+}
+
+func (ds *DiskScheduler) Schedule(req DiskReq) <-chan DiskResp {
 	ds.reqCh <- req
+	return req.RespCh
 }
 
 func (ds *DiskScheduler) handleDiskReq() {
@@ -43,7 +55,6 @@ func (ds *DiskScheduler) pageWorker(pageId int, reqQueue chan DiskReq) {
 	for {
 		select {
 		case req := <-reqQueue:
-
 			if req.Write {
 				if err := ds.diskManager.writePage(req.PageId, req.Data); err != nil {
 					req.RespCh <- DiskResp{Success: false}
@@ -63,6 +74,7 @@ func (ds *DiskScheduler) pageWorker(pageId int, reqQueue chan DiskReq) {
 			ds.pageQueueMu.Lock()
 			delete(ds.pageQueue, pageId)
 			ds.pageQueueMu.Unlock()
+			return
 		}
 
 	}
@@ -75,6 +87,7 @@ type DiskScheduler struct {
 
 	pageQueue   map[int]chan DiskReq
 	pageQueueMu sync.Mutex
+	mu          sync.Mutex
 }
 
 type DiskReq struct {
