@@ -77,7 +77,7 @@ func TestBufferPoolManager(t *testing.T) {
 
 	t.Run("supports concurrent readers", func(t *testing.T) {})
 	t.Run("writes a page to disk", func(t *testing.T) {})
-	t.Run("in memory pages are flushed to disk before eviction", func(t *testing.T) {})
+	t.Run("dirty pages are flushed to disk before eviction", func(t *testing.T) {})
 }
 
 func CreateDbFile(t *testing.T) *os.File {
