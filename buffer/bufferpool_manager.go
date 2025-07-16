@@ -44,6 +44,8 @@ func (b *BufferpoolManager) ReadPage(pageId int64) ([]byte, error) {
 		b.replacer.setEvictable(frame.id, false)
 		frame.mu.Lock()
 		frame.pin()
+
+		b.cleanUp(frame)
 		return frame.data, nil
 	}
 

@@ -23,15 +23,62 @@ func TestBufferPoolManager(t *testing.T) {
 		bufferMgr := NewBufferpoolManager(5, replacer, diskScheduler)
 
 		pageId := 1
-		data := []byte("hello, world!")
+		data := make([]byte, disk.PAGE_SIZE)
+		copy(data, []byte("hello, world!"))
 		syncWrite(pageId, data, diskScheduler)
 
-		res, _ := bufferMgr.ReadPage(int64(pageId))
-		fmt.Println(string(res))
+		res, err := bufferMgr.ReadPage(int64(pageId))
+		assert.NoError(t, err)
+
+		assert.Equal(t, data, res)
+		assert.Equal(t, data, bufferMgr.frames[0].data)
+	})
+
+	t.Run("evicts least recently used page", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		replacer := NewLrukReplacer(2, 2)
+		diskMgr := disk.NewManager(file)
+		diskScheduler := disk.NewScheduler(diskMgr)
+		bufferMgr := NewBufferpoolManager(2, replacer, diskScheduler)
+
+		content := []string{"1", "2", "3"}
+		for pageId, d := range content {
+			data := make([]byte, disk.PAGE_SIZE)
+			copy(data, []byte(d))
+			fmt.Printf("storing %s in page %d\n", string(data), pageId+1)
+			syncWrite(pageId+1, data, diskScheduler)
+		}
+
+		// access page 2 many times
+		for range 5 {
+			res, err := bufferMgr.ReadPage(int64(2))
+			fmt.Println(string(res))
+			assert.NoError(t, err)
+		}
+
+		// access page 1 to make page 2 least recently used
+		_, err := bufferMgr.ReadPage(int64(1))
+		assert.NoError(t, err)
+
+		// accessing page 3 should evict page 1
+		for i := range len(content) {
+			res, err := bufferMgr.ReadPage(int64(i + 1))
+			assert.NoError(t, err)
+
+			fmt.Printf("retrieved data %s from page %d\n", string(res), i+1)
+			// assert.Equal(t, strings.TrimSpace(string(res)), content[i])
+		}
+
+		// page id 1, should have been evicted
+		assert.Equal(t, bufferMgr.frames[0].pageId, int64(2))
+		assert.Equal(t, bufferMgr.frames[1].pageId, int64(3))
 	})
 
 	t.Run("supports concurrent readers", func(t *testing.T) {})
-	t.Run("evicts least recently used page", func(t *testing.T) {})
 	t.Run("writes a page to disk", func(t *testing.T) {})
 	t.Run("in memory pages are flushed to disk before eviction", func(t *testing.T) {})
 }
@@ -55,7 +102,6 @@ func CreateDbFile(t *testing.T) *os.File {
 
 func syncWrite(pageId int, data []byte, diskScheduler *disk.DiskScheduler) {
 	resCh := make(chan disk.DiskResp)
-	copy(data, []byte("hello world"))
 
 	writeReq := disk.DiskReq{
 		PageId: pageId,
