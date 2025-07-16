@@ -50,14 +50,12 @@ func TestBufferPoolManager(t *testing.T) {
 		for pageId, d := range content {
 			data := make([]byte, disk.PAGE_SIZE)
 			copy(data, []byte(d))
-			fmt.Printf("storing %s in page %d\n", string(data), pageId+1)
 			syncWrite(pageId+1, data, diskScheduler)
 		}
 
 		// access page 2 many times
 		for range 5 {
-			res, err := bufferMgr.ReadPage(int64(2))
-			fmt.Println(string(res))
+			_, err := bufferMgr.ReadPage(int64(2))
 			assert.NoError(t, err)
 		}
 
