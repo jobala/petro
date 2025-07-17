@@ -126,39 +126,32 @@ func TestBufferPoolManager(t *testing.T) {
 		// page 1 should have been evicted and flushed to disk
 		res := syncRead(1, diskScheduler)
 		assert.Equal(t, content[0], string(bytes.Trim(res, "\x00")))
-		//
-		// // access page 2 many times
-		// for range 5 {
-		// 	_, err := bufferMgr.ReadPage(int64(2))
-		// 	assert.NoError(t, err)
-		// }
-		//
-		// // access page 1 to make page 2 least recently used
-		// _, err := bufferMgr.ReadPage(int64(1))
-		// assert.NoError(t, err)
-		//
-		// // accessing page 3 should evict page 1
-		// for i := range len(content) {
-		// 	res, err := bufferMgr.ReadPage(int64(i + 1))
-		// 	assert.NoError(t, err)
-		// 	assert.Equal(t, string(bytes.Trim(res, "\x00")), content[i])
-		// }
-		//
-		// // page id 1, should have been evicted
-		// assert.Equal(t, bufferMgr.frames[0].pageId, int64(2))
-		// assert.Equal(t, bufferMgr.frames[1].pageId, int64(3))
-		//
-		// // buffermanager's pagetable shouldn't have evicted pageId
-		// _, ok := bufferMgr.pageTable[1]
-		// assert.Equal(t, false, ok)
 	})
 
-	t.Run("can handle concurrent readers", func(t *testing.T) {
-		t.Skip()
-	})
+	t.Run("can read and write", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
 
-	t.Run("can handle concurrent writers", func(t *testing.T) {
-		t.Skip()
+		replacer := NewLrukReplacer(2, 2)
+		diskMgr := disk.NewManager(file)
+		diskScheduler := disk.NewScheduler(diskMgr)
+		bufferMgr := NewBufferpoolManager(2, replacer, diskScheduler)
+
+		content := []string{"1", "2", "3"}
+		for pageId, d := range content {
+			data := make([]byte, disk.PAGE_SIZE)
+			copy(data, []byte(d))
+			err := bufferMgr.WritePage(int64(pageId+1), data)
+			assert.NoError(t, err)
+		}
+
+		for pageId, data := range content {
+			res, err := bufferMgr.ReadPage(int64(pageId + 1))
+			assert.NoError(t, err)
+			assert.Equal(t, data, string(bytes.Trim(res, "\x00")))
+		}
 	})
 }
 
