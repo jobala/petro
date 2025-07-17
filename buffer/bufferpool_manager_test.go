@@ -73,11 +73,48 @@ func TestBufferPoolManager(t *testing.T) {
 		// page id 1, should have been evicted
 		assert.Equal(t, bufferMgr.frames[0].pageId, int64(2))
 		assert.Equal(t, bufferMgr.frames[1].pageId, int64(3))
+
+		// buffermanager's pagetable shouldn't have evicted pageId
+		_, ok := bufferMgr.pageTable[1]
+		assert.Equal(t, false, ok)
 	})
 
-	t.Run("supports concurrent readers", func(t *testing.T) {})
-	t.Run("writes a page to disk", func(t *testing.T) {})
-	t.Run("dirty pages are flushed to disk before eviction", func(t *testing.T) {})
+	t.Run("writes a page to disk", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		replacer := NewLrukReplacer(5, 2)
+		diskMgr := disk.NewManager(file)
+		diskScheduler := disk.NewScheduler(diskMgr)
+		bufferMgr := NewBufferpoolManager(5, replacer, diskScheduler)
+
+		pageId := 1
+		data := make([]byte, disk.PAGE_SIZE)
+		copy(data, []byte("hello, world!"))
+
+		err := bufferMgr.WritePage(int64(pageId), data)
+		assert.NoError(t, err)
+		assert.Equal(t, data, bufferMgr.frames[0].data)
+		assert.True(t, bufferMgr.frames[0].dirty, true)
+
+		bufferMgr.flush(bufferMgr.frames[0])
+		res := syncRead(pageId, diskScheduler)
+		assert.Equal(t, data, res)
+	})
+
+	t.Run("dirty pages are flushed to disk before eviction", func(t *testing.T) {
+		t.Skip()
+	})
+
+	t.Run("can handle concurrent readers", func(t *testing.T) {
+		t.Skip()
+	})
+
+	t.Run("can handle concurrent writers", func(t *testing.T) {
+		t.Skip()
+	})
 }
 
 func CreateDbFile(t *testing.T) *os.File {
@@ -109,4 +146,12 @@ func syncWrite(pageId int, data []byte, diskScheduler *disk.DiskScheduler) {
 
 	diskScheduler.Schedule(writeReq)
 	<-resCh
+}
+
+func syncRead(pageId int, diskScheduler *disk.DiskScheduler) []byte {
+	readReq := disk.NewRequest(int64(pageId), nil, false)
+	respCh := diskScheduler.Schedule(readReq)
+	res := <-respCh
+
+	return res.Data
 }
