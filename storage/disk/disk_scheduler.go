@@ -22,7 +22,7 @@ func NewRequest(pageId int64, data []byte, isWrite bool) DiskReq {
 	return DiskReq{
 		PageId: int(pageId),
 		Data:   data,
-		Write:  false,
+		Write:  isWrite,
 		RespCh: respCh,
 	}
 }
