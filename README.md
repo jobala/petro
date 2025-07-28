@@ -5,12 +5,13 @@ A simple key value storage engine
 ## Design Notes
 
 - [Disk Management](https://japhethobala.com/posts/technical/db-disk-mgmt)
+- [Bufferpool Management](https://japhethobala.com/posts/technical/db-buffer-mgmt/)
 
 ## Roadmap
 
 - [x] Disk Management
-- [ ] Bufferpool Management
-- [ ] Index
+- [x] Bufferpool Management
+- [ ] Index Management
 - [ ] Transactions
 - [ ] Logging
 - [ ] Recovery
