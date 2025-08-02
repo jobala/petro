@@ -32,7 +32,7 @@ func NewBufferpoolManager(size int, replacer *lrukReplacer, diskScheduler *disk.
 	}
 }
 
-func (b *BufferpoolManager) ReadPage(pageId int64) ([]byte, error) {
+func (b *BufferpoolManager) ReadPage(pageId int64) (*PageGuard, error) {
 	b.mu.Lock()
 	var frame *frame
 
@@ -45,8 +45,7 @@ func (b *BufferpoolManager) ReadPage(pageId int64) ([]byte, error) {
 		frame.mu.Lock()
 		frame.pin()
 
-		b.cleanUp(frame)
-		return frame.data, nil
+		return NewPageGuard(frame, b.replacer), nil
 	}
 
 	if len(b.freeFrames) > 0 {
@@ -79,11 +78,10 @@ func (b *BufferpoolManager) ReadPage(pageId int64) ([]byte, error) {
 	resp := <-respCh
 	copy(frame.data, resp.Data)
 
-	b.cleanUp(frame)
-	return frame.data, nil
+	return NewPageGuard(frame, b.replacer), nil
 }
 
-func (b *BufferpoolManager) WritePage(pageId int64, data []byte) error {
+func (b *BufferpoolManager) WritePage(pageId int64, data []byte) (*PageGuard, error) {
 	b.mu.Lock()
 	var frame *frame
 
@@ -98,8 +96,7 @@ func (b *BufferpoolManager) WritePage(pageId int64, data []byte) error {
 		frame.dirty = true
 		copy(frame.data, data)
 
-		b.cleanUp(frame)
-		return nil
+		return NewPageGuard(frame, b.replacer), nil
 	}
 
 	if len(b.freeFrames) > 0 {
@@ -109,7 +106,7 @@ func (b *BufferpoolManager) WritePage(pageId int64, data []byte) error {
 	} else {
 		id, err := b.replacer.evict()
 		if err != nil {
-			return fmt.Errorf("error getting bufferpool frame")
+			return nil, fmt.Errorf("error getting bufferpool frame")
 		}
 
 		frame = b.frames[id]
@@ -130,21 +127,11 @@ func (b *BufferpoolManager) WritePage(pageId int64, data []byte) error {
 	frame.pageId = pageId
 	copy(frame.data, data)
 
-	b.cleanUp(frame)
-	return nil
+	return NewPageGuard(frame, b.replacer), nil
 }
 
 func (b *BufferpoolManager) NewPageId() int64 {
 	return b.nextPageId.Add(1)
-}
-
-func (b *BufferpoolManager) cleanUp(frame *frame) {
-	frame.unpin()
-	if frame.pins.Load() == 0 {
-		b.replacer.setEvictable(frame.id, true)
-	}
-
-	frame.mu.Unlock()
 }
 
 func (b *BufferpoolManager) flush(frame *frame) {
