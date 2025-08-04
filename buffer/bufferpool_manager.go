@@ -32,7 +32,7 @@ func NewBufferpoolManager(size int, replacer *lrukReplacer, diskScheduler *disk.
 	}
 }
 
-func (b *BufferpoolManager) ReadPage(pageId int64) (*PageGuard, error) {
+func (b *BufferpoolManager) ReadPage(pageId int64) (*ReadPageGuard, error) {
 	b.mu.Lock()
 	var frame *frame
 
@@ -45,7 +45,7 @@ func (b *BufferpoolManager) ReadPage(pageId int64) (*PageGuard, error) {
 		frame.mu.Lock()
 		frame.pin()
 
-		return NewPageGuard(frame, b.replacer), nil
+		return NewReadPageGuard(frame, b.replacer), nil
 	}
 
 	if len(b.freeFrames) > 0 {
@@ -78,10 +78,10 @@ func (b *BufferpoolManager) ReadPage(pageId int64) (*PageGuard, error) {
 	resp := <-respCh
 	copy(frame.data, resp.Data)
 
-	return NewPageGuard(frame, b.replacer), nil
+	return NewReadPageGuard(frame, b.replacer), nil
 }
 
-func (b *BufferpoolManager) WritePage(pageId int64, data []byte) (*PageGuard, error) {
+func (b *BufferpoolManager) WritePage(pageId int64) (*WritePageGuard, error) {
 	b.mu.Lock()
 	var frame *frame
 
@@ -94,9 +94,8 @@ func (b *BufferpoolManager) WritePage(pageId int64, data []byte) (*PageGuard, er
 		frame.mu.Lock()
 		frame.pin()
 		frame.dirty = true
-		copy(frame.data, data)
 
-		return NewPageGuard(frame, b.replacer), nil
+		return NewWritePageGuard(frame, b.replacer), nil
 	}
 
 	if len(b.freeFrames) > 0 {
@@ -125,9 +124,8 @@ func (b *BufferpoolManager) WritePage(pageId int64, data []byte) (*PageGuard, er
 	frame.pin()
 	frame.dirty = true
 	frame.pageId = pageId
-	copy(frame.data, data)
 
-	return NewPageGuard(frame, b.replacer), nil
+	return NewWritePageGuard(frame, b.replacer), nil
 }
 
 func (b *BufferpoolManager) NewPageId() int64 {
