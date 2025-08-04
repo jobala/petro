@@ -12,6 +12,9 @@ A simple key value storage engine
 - [x] Disk Management
 - [x] Bufferpool Management
 - [ ] Index Management
+  - [x] GetValue
+  - [ ] Insert
+  - [ ] Iterator
+  - [ ] Delete
 - [ ] Transactions
-- [ ] Logging
 - [ ] Recovery

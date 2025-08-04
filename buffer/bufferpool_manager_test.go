@@ -28,10 +28,11 @@ func TestBufferPoolManager(t *testing.T) {
 		copy(data, []byte("hello, world!"))
 		syncWrite(pageId, data, diskScheduler)
 
-		res, err := bufferMgr.ReadPage(int64(pageId))
+		pageGuard, err := bufferMgr.ReadPage(int64(pageId))
+		defer pageGuard.Drop()
 		assert.NoError(t, err)
 
-		assert.Equal(t, data, res)
+		assert.Equal(t, data, pageGuard.GetData())
 		assert.Equal(t, data, bufferMgr.frames[0].data)
 	})
 
@@ -55,19 +56,23 @@ func TestBufferPoolManager(t *testing.T) {
 
 		// access page 2 many times
 		for range 5 {
-			_, err := bufferMgr.ReadPage(int64(2))
+			pageGuard, err := bufferMgr.ReadPage(int64(2))
 			assert.NoError(t, err)
+			pageGuard.Drop()
 		}
 
 		// access page 1 to make page 2 least recently used
-		_, err := bufferMgr.ReadPage(int64(1))
+		pageGuard, err := bufferMgr.ReadPage(int64(1))
 		assert.NoError(t, err)
+		pageGuard.Drop()
 
 		// accessing page 3 should evict page 1
 		for i := range len(content) {
-			res, err := bufferMgr.ReadPage(int64(i + 1))
+			pageGuard, err := bufferMgr.ReadPage(int64(i + 1))
+
 			assert.NoError(t, err)
-			assert.Equal(t, string(bytes.Trim(res, "\x00")), content[i])
+			assert.Equal(t, string(bytes.Trim(pageGuard.GetData(), "\x00")), content[i])
+			pageGuard.Drop()
 		}
 
 		// page id 1, should have been evicted
@@ -94,7 +99,10 @@ func TestBufferPoolManager(t *testing.T) {
 		data := make([]byte, disk.PAGE_SIZE)
 		copy(data, []byte("hello, world!"))
 
-		err := bufferMgr.WritePage(int64(pageId), data)
+		pageGuard, err := bufferMgr.WritePage(int64(pageId))
+		copy(*pageGuard.GetDataMut(), data)
+		defer pageGuard.Drop()
+
 		assert.NoError(t, err)
 		assert.Equal(t, data, bufferMgr.frames[0].data)
 		assert.True(t, bufferMgr.frames[0].dirty, true)
@@ -119,7 +127,11 @@ func TestBufferPoolManager(t *testing.T) {
 		for pageId, d := range content {
 			data := make([]byte, disk.PAGE_SIZE)
 			copy(data, []byte(d))
-			err := bufferMgr.WritePage(int64(pageId+1), data)
+
+			pageGuard, err := bufferMgr.WritePage(int64(pageId + 1))
+			copy(*pageGuard.GetDataMut(), data)
+			pageGuard.Drop()
+
 			assert.NoError(t, err)
 		}
 
@@ -143,14 +155,19 @@ func TestBufferPoolManager(t *testing.T) {
 		for pageId, d := range content {
 			data := make([]byte, disk.PAGE_SIZE)
 			copy(data, []byte(d))
-			err := bufferMgr.WritePage(int64(pageId+1), data)
+			pageGuard, err := bufferMgr.WritePage(int64(pageId + 1))
+			copy(*pageGuard.GetDataMut(), data)
+			pageGuard.Drop()
+
 			assert.NoError(t, err)
 		}
 
 		for pageId, data := range content {
-			res, err := bufferMgr.ReadPage(int64(pageId + 1))
+			pageGuard, err := bufferMgr.ReadPage(int64(pageId + 1))
+			pageGuard.Drop()
+
 			assert.NoError(t, err)
-			assert.Equal(t, data, string(bytes.Trim(res, "\x00")))
+			assert.Equal(t, data, string(bytes.Trim(pageGuard.GetData(), "\x00")))
 		}
 	})
 }
