@@ -37,6 +37,22 @@ func (p *page) getSize() int {
 	return int(p.size)
 }
 
+func (p *page) getInsertIdx(key int) int {
+	left := 0
+	right := p.getSize() - 1
+
+	for left <= right {
+		mid := left + (right-left)/2
+		if mid < key {
+			left = mid + 1
+		} else {
+			right = mid - 1
+		}
+	}
+
+	return left
+}
+
 // todo: calculate available space
 type page struct {
 	header

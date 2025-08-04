@@ -7,7 +7,7 @@ import (
 	"github.com/jobala/petro/storage/disk"
 )
 
-func newBplusTree(name string, bpm *buffer.BufferpoolManager) (*bplusTree, error) {
+func NewBplusTree(name string, bpm *buffer.BufferpoolManager) (*bplusTree, error) {
 	guard, err := bpm.WritePage(HEADER_PAGE_ID)
 	defer guard.Drop()
 	if err != nil {
@@ -29,6 +29,33 @@ func newBplusTree(name string, bpm *buffer.BufferpoolManager) (*bplusTree, error
 		bpm:       bpm,
 		header:    headerPage,
 	}, nil
+}
+
+// todo: make GetValue generic
+func (b *bplusTree) GetValue(key int) ([]int, error) {
+	res := make([]int, 1)
+	leafPageId, err := b.findLeafPageId(b.header.rootPageId, key)
+	if err != nil {
+		return nil, err
+	}
+
+	guard, err := b.bpm.ReadPage(leafPageId)
+	if err != nil {
+		return nil, err
+	}
+
+	leafPage, err := buffer.ToStruct[page](guard.GetData())
+	if err != nil {
+		return nil, err
+	}
+
+	valIdx := leafPage.getInsertIdx(key)
+	if valIdx < 0 || valIdx >= leafPage.getSize() {
+		return nil, fmt.Errorf("value not found")
+	}
+
+	res = append(res, int(leafPage.valueAt(valIdx)))
+	return res, nil
 }
 
 func (b *bplusTree) findLeafPageId(rootPageId int64, key int) (int64, error) {
