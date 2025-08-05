@@ -13,7 +13,7 @@ A simple key value storage engine
 - [x] Bufferpool Management
 - [ ] Index Management
   - [x] GetValue
-  - [ ] Insert
+  - [x] Insert
   - [ ] Iterator
   - [ ] Delete
 - [ ] Transactions

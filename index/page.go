@@ -10,15 +10,11 @@ const (
 
 const HEADER_PAGE_ID = 0
 
-func newPage(pageType PAGE_TYPE, pageId, parentPageId int64) *page {
-	return &page{
-		header: header{
-			pageId:   pageId,
-			parent:   parentPageId,
-			pageType: pageType,
-			maxSize:  256, // todo: calculate max size based on page and header size
-		},
-	}
+func (p *page) init(pageType PAGE_TYPE, pageId, parentPageId int64) {
+	p.pageType = pageType
+	p.pageId = pageId
+	p.parent = parentPageId
+	p.maxSize = 256 // todo: calculate max size
 }
 
 func (p *page) isLeafPage() bool {
@@ -53,11 +49,23 @@ func (p *page) getInsertIdx(key int) int {
 	return left
 }
 
+func (p *page) setKeyAt(idx, key int) {
+	panic("setKeyAt is  not implemented")
+}
+
+func (p *page) setValAt(idx int, value int64) {
+	panic("setValueAt is not  implemented")
+}
+
+func (p *page) addKeyVal(key int, val int64) {
+	panic("addKeyVal is not implemented")
+}
+
 // todo: calculate available space
 type page struct {
 	header
-	keys   [255]int
-	values [255]int64
+	keys   [256]int
+	values [256]int64
 }
 
 type header struct {
