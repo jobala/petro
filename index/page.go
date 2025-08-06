@@ -1,5 +1,7 @@
 package index
 
+import "slices"
+
 type PAGE_TYPE = int
 
 const (
@@ -50,22 +52,24 @@ func (p *page) getInsertIdx(key int) int {
 }
 
 func (p *page) setKeyAt(idx, key int) {
-	panic("setKeyAt is  not implemented")
+	p.keys[idx] = key
 }
 
 func (p *page) setValAt(idx int, value int64) {
-	panic("setValueAt is not  implemented")
+	p.values[idx] = value
 }
 
 func (p *page) addKeyVal(key int, val int64) {
-	panic("addKeyVal is not implemented")
+	insertIdx := p.getInsertIdx(key)
+	p.keys = slices.Insert(p.keys, insertIdx, key)
+	p.values = slices.Insert(p.values, insertIdx, val)
 }
 
 // todo: calculate available space
 type page struct {
 	header
-	keys   [256]int
-	values [256]int64
+	keys   []int
+	values []int64
 }
 
 type header struct {

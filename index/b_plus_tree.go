@@ -138,8 +138,8 @@ func (b *bplusTree) insert(key int, value int64) (bool, error) {
 			// copy values to tmp and zero out original arrays
 			copy(tmpKeyArr, leafPage.keys[:])
 			copy(tmpValArr, leafPage.values[:])
-			leafPage.keys = [256]int{}
-			leafPage.values = [256]int64{}
+			leafPage.keys = []int{}
+			leafPage.values = []int64{}
 
 			insertIdx := leafPage.getInsertIdx(key)
 			tmpKeyArr = slices.Insert(tmpKeyArr, insertIdx, key)
@@ -249,8 +249,8 @@ func (b *bplusTree) insertInParent(leafPage *page, newLeafPage *page, key int) e
 			// copy values to tmp and zero out original arrays
 			copy(tmpKeyArr, leafPage.keys[:])
 			copy(tmpValArr, leafPage.values[:])
-			parentPage.keys = [256]int{}
-			parentPage.values = [256]int64{}
+			parentPage.keys = []int{}
+			parentPage.values = []int64{}
 
 			insertIdx := parentPage.getInsertIdx(key)
 			tmpKeyArr = slices.Insert(tmpKeyArr, insertIdx, key)
