@@ -54,7 +54,8 @@ func ToStruct[T any](data []byte) (T, error) {
 	var res T
 	gob := gob.NewDecoder(bytes.NewReader(data))
 	if err := gob.Decode(&res); err != nil {
-		return res, err
+
+		return res, nil
 	}
 
 	return res, nil

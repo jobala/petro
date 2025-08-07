@@ -5,33 +5,29 @@ import (
 	"slices"
 )
 
-type bplusInternalPage[K cmp.Ordered] struct {
-	bplusPageHeader
-	keys   []K
-	values []int64
-}
-
 func (p *bplusInternalPage[K]) init(pageId, parentPageId int64) {
-	p.pageType = INTERNAL_PAGE
-	p.pageId = pageId
-	p.parent = parentPageId
-	p.maxSize = 256 // todo: calculate max size
+	p.PageType = INTERNAL_PAGE
+	p.PageId = pageId
+	p.Parent = parentPageId
+	p.Keys = make([]K, SLOT_SIZE)
+	p.Values = make([]int64, SLOT_SIZE)
+	p.MaxSize = 256 // todo: calculate max size
 }
 
 func (p *bplusInternalPage[K]) isLeafPage() bool {
-	return p.pageType == LEAF_PAGE
+	return p.PageType == LEAF_PAGE
 }
 
 func (p *bplusInternalPage[K]) keyAt(idx int) K {
-	return p.keys[idx]
+	return p.Keys[idx]
 }
 
 func (p *bplusInternalPage[K]) valueAt(idx int) int64 {
-	return p.values[idx]
+	return p.Values[idx]
 }
 
 func (p *bplusInternalPage[K]) getSize() int {
-	return int(p.size)
+	return int(p.Size)
 }
 
 func (p *bplusInternalPage[K]) getInsertIdx(key K) int {
@@ -51,15 +47,21 @@ func (p *bplusInternalPage[K]) getInsertIdx(key K) int {
 }
 
 func (p *bplusInternalPage[K]) setKeyAt(idx int, key K) {
-	p.keys[idx] = key
+	p.Keys[idx] = key
 }
 
 func (p *bplusInternalPage[K]) setValAt(idx int, value int64) {
-	p.values[idx] = value
+	p.Values[idx] = value
 }
 
 func (p *bplusInternalPage[K]) addKeyVal(key K, val int64) {
 	insertIdx := p.getInsertIdx(key)
-	p.keys = slices.Insert(p.keys, insertIdx, key)
-	p.values = slices.Insert(p.values, insertIdx, val)
+	p.Keys = slices.Insert(p.Keys, insertIdx, key)
+	p.Values = slices.Insert(p.Values, insertIdx, val)
+}
+
+type bplusInternalPage[K cmp.Ordered] struct {
+	BplusPageHeader
+	Keys   []K
+	Values []int64
 }

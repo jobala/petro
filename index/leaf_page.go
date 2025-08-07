@@ -14,23 +14,26 @@ const (
 )
 
 const HEADER_PAGE_ID = 0
+const SLOT_SIZE = 5
 
 func (p *bplusLeafPage[K, V]) init(pageId, parentPageId int64) {
-	p.pageType = LEAF_PAGE
-	p.pageId = pageId
-	p.parent = parentPageId
-	p.maxSize = 256 // todo: calculate max size
+	p.PageType = LEAF_PAGE
+	p.PageId = pageId
+	p.Parent = parentPageId
+	p.Keys = make([]K, SLOT_SIZE)
+	p.Values = make([]V, SLOT_SIZE)
+	p.MaxSize = 256 // todo: calculate max size
 }
 func (p *bplusLeafPage[K, V]) keyAt(idx int) K {
-	return p.keys[idx]
+	return p.Keys[idx]
 }
 
 func (p *bplusLeafPage[K, V]) valueAt(idx int) V {
-	return p.values[idx]
+	return p.Values[idx]
 }
 
 func (p *bplusLeafPage[K, V]) getSize() int {
-	return int(p.size)
+	return int(p.Size)
 }
 
 func (p *bplusLeafPage[K, V]) getInsertIdx(key K) int {
@@ -50,35 +53,35 @@ func (p *bplusLeafPage[K, V]) getInsertIdx(key K) int {
 }
 
 func (p *bplusLeafPage[K, V]) setKeyAt(idx int, key K) {
-	p.keys[idx] = key
+	p.Keys[idx] = key
 }
 
 func (p *bplusLeafPage[K, V]) setValAt(idx int, value V) {
-	p.values[idx] = value
+	p.Values[idx] = value
 }
 
 func (p *bplusLeafPage[K, V]) addKeyVal(key K, val V) {
 	insertIdx := p.getInsertIdx(key)
-	p.keys = slices.Insert(p.keys, insertIdx, key)
-	p.values = slices.Insert(p.values, insertIdx, val)
+	p.Keys = slices.Insert(p.Keys, insertIdx, key)
+	p.Values = slices.Insert(p.Values, insertIdx, val)
 }
 
 type bplusLeafPage[K cmp.Ordered, V any] struct {
-	bplusPageHeader
-	keys   []K
-	values []V
+	BplusPageHeader
+	Keys   []K
+	Values []V
 }
 
-type bplusPageHeader struct {
-	pageId   int64
-	parent   int64
-	next     int64
-	prev     int64
-	size     int32
-	maxSize  int32
-	pageType PAGE_TYPE
+type BplusPageHeader struct {
+	PageId   int64
+	Parent   int64
+	Next     int64
+	Prev     int64
+	Size     int32
+	MaxSize  int32
+	PageType PAGE_TYPE
 }
 
-func (h *bplusPageHeader) isLeafPage() bool {
-	return h.pageType == LEAF_PAGE
+func (h *BplusPageHeader) isLeafPage() bool {
+	return h.PageType == LEAF_PAGE
 }
