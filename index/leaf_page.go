@@ -22,7 +22,7 @@ func (p *bplusLeafPage[K, V]) init(pageId, parentPageId int64) {
 	p.Parent = parentPageId
 	p.Keys = make([]K, SLOT_SIZE)
 	p.Values = make([]V, SLOT_SIZE)
-	p.MaxSize = 256 // todo: calculate max size
+	p.MaxSize = SLOT_SIZE // todo: calculate max size
 }
 func (p *bplusLeafPage[K, V]) keyAt(idx int) K {
 	return p.Keys[idx]

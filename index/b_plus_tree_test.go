@@ -39,10 +39,30 @@ func TestBPlusTree(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
 		}
-
 	})
 
-	t.Run("leaf nodes split when values > max size", func(t *testing.T) {})
+	t.Run("leaf nodes split when values > max size", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[int, int]("test", bpm)
+		assert.NoError(t, err)
+
+		for i := range 8 {
+			inserted, err := bplus.insert(i, i)
+			assert.NoError(t, err)
+			assert.True(t, inserted)
+		}
+
+		for i := range 8 {
+			val, err := bplus.getValue(i)
+			assert.NoError(t, err)
+			assert.Equal(t, i, val[0])
+		}
+	})
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {

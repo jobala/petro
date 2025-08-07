@@ -97,15 +97,14 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 		}
 
 		guard, err := b.bpm.WritePage(leafPageId)
+		defer guard.Drop()
 		if err != nil {
-			guard.Drop()
 			return false, err
 		}
 
 		leafPage, err := buffer.ToStruct[bplusLeafPage[K, V]](*guard.GetDataMut())
 		if err != nil {
 
-			guard.Drop()
 			return false, err
 		}
 
@@ -118,7 +117,6 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 				return false, err
 			}
 			copy(*guard.GetDataMut(), data)
-			guard.Drop()
 		} else {
 			newLeafId := b.bpm.NewPageId()
 			newGuard, err := b.bpm.WritePage(newLeafId)
@@ -133,18 +131,18 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			}
 			newLeafPage.init(newLeafId, leafPage.Parent)
 
-			var tmpKeyArr []K
-			var tmpValArr []V
-
-			// copy values to tmp and zero out original arrays
-			copy(tmpKeyArr, leafPage.Keys[:])
-			copy(tmpValArr, leafPage.Values[:])
-			leafPage.Keys = []K{}
-			leafPage.Values = []V{}
-
 			insertIdx := leafPage.getInsertIdx(key)
-			tmpKeyArr = slices.Insert(tmpKeyArr, insertIdx, key)
-			tmpValArr = slices.Insert(tmpValArr, insertIdx, value)
+			leafPage.Keys = slices.Insert(leafPage.Keys, insertIdx, key)
+			leafPage.Values = slices.Insert(leafPage.Values, insertIdx, value)
+
+			tmpKeyArr := make([]K, leafPage.MaxSize+1)
+			tmpValArr := make([]V, leafPage.MaxSize+1)
+			copy(tmpKeyArr, leafPage.Keys)
+			copy(tmpValArr, leafPage.Values)
+
+			// zero out keys and values in leaf page
+			leafPage.Keys = make([]K, leafPage.MaxSize)
+			leafPage.Values = make([]V, leafPage.MaxSize)
 
 			tmpNexPage := leafPage.Next
 			newLeafPage.Next = tmpNexPage
@@ -153,13 +151,14 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 
 			midPoint := int(math.Ceil(float64(leafPage.MaxSize) / 2))
 
-			copy(leafPage.Keys[:], tmpKeyArr[:midPoint])
-			copy(leafPage.Values[:], tmpValArr[:midPoint])
-			copy(newLeafPage.Keys[:], tmpKeyArr[midPoint:])
-			copy(newLeafPage.Values[:], tmpValArr[midPoint:])
+			// distribute values between leaf and new leaf
+			copy(leafPage.Keys, tmpKeyArr[:midPoint])
+			copy(leafPage.Values, tmpValArr[:midPoint])
+			copy(newLeafPage.Keys, tmpKeyArr[midPoint:])
+			copy(newLeafPage.Values, tmpValArr[midPoint:])
 
 			leafPage.Size = int32(midPoint)
-			newLeafPage.Size = int32(len(tmpKeyArr) - midPoint)
+			newLeafPage.Size = int32(int(leafPage.MaxSize) - midPoint)
 
 			leafData, err := buffer.ToByteSlice(leafPage)
 			if err != nil {
@@ -171,14 +170,25 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			if err != nil {
 				return false, err
 			}
-			copy(*guard.GetDataMut(), newLeafData)
+			copy(*newGuard.GetDataMut(), newLeafData)
 
-			guard.Drop()
-			newGuard.Drop()
-			if err := b.insertInParent(leafPage.BplusPageHeader, newLeafPage.BplusPageHeader, newLeafPage.keyAt(0)); err != nil {
+			if err := b.insertInParent(&leafPage.BplusPageHeader, &newLeafPage.BplusPageHeader, newLeafPage.keyAt(0)); err != nil {
 				return false, err
 			}
 
+			// need to update the data in the frame here as well.
+			// TODO: find a clean way of syncing struct state with frame data
+			leafData, err = buffer.ToByteSlice(leafPage)
+			if err != nil {
+				return false, err
+			}
+			copy(*guard.GetDataMut(), leafData)
+
+			newLeafData, err = buffer.ToByteSlice(newLeafPage)
+			if err != nil {
+				return false, err
+			}
+			copy(*newGuard.GetDataMut(), newLeafData)
 			return true, nil
 		}
 
@@ -187,7 +197,7 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 	return true, nil
 }
 
-func (b *bplusTree[K, V]) insertInParent(leafPage BplusPageHeader, newLeafPage BplusPageHeader, key K) error {
+func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage *BplusPageHeader, key K) error {
 	leafIsRoot := leafPage.PageId == b.header.RootPageId
 	if leafIsRoot {
 		newRootId := b.bpm.NewPageId()
@@ -295,7 +305,7 @@ func (b *bplusTree[K, V]) insertInParent(leafPage BplusPageHeader, newLeafPage B
 
 			guard.Drop()
 			pGuard.Drop()
-			if err := b.insertInParent(parentPage.BplusPageHeader, pPrime.BplusPageHeader, tmpKeyArr[midPoint]); err != nil {
+			if err := b.insertInParent(&parentPage.BplusPageHeader, &pPrime.BplusPageHeader, tmpKeyArr[midPoint]); err != nil {
 				return err
 			}
 		}
