@@ -51,13 +51,13 @@ func TestBPlusTree(t *testing.T) {
 		bplus, err := NewBplusTree[int, int]("test", bpm)
 		assert.NoError(t, err)
 
-		for i := range 8 {
+		for i := range 23 {
 			inserted, err := bplus.insert(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
-		for i := range 8 {
+		for i := range 23 {
 			val, err := bplus.getValue(i)
 			assert.NoError(t, err)
 			assert.Equal(t, i, val[0])

@@ -244,7 +244,7 @@ func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage 
 			return err
 		}
 
-		if parentPage.Size < parentPage.MaxSize {
+		if parentPage.Size+1 < parentPage.MaxSize {
 			parentPage.addKeyVal(key, newLeafPage.PageId)
 			parentPage.Size += 1
 
@@ -255,18 +255,19 @@ func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage 
 			copy(*guard.GetDataMut(), data)
 			guard.Drop()
 		} else {
-			var tmpKeyArr []K
-			var tmpValArr []int64
-
-			// copy values to tmp and zero out original arrays
-			copy(tmpKeyArr, parentPage.Keys[:])
-			copy(tmpValArr, parentPage.Values[:])
-			parentPage.Keys = []K{}
-			parentPage.Values = []int64{}
 
 			insertIdx := parentPage.getInsertIdx(key)
-			tmpKeyArr = slices.Insert(tmpKeyArr, insertIdx, key)
-			tmpValArr = slices.Insert(tmpValArr, insertIdx, newLeafPage.PageId)
+			parentPage.Keys = slices.Insert(parentPage.Keys, insertIdx, key)
+			parentPage.Values = slices.Insert(parentPage.Values, insertIdx, newLeafPage.PageId)
+
+			tmpKeyArr := make([]K, parentPage.MaxSize+1)
+			tmpValArr := make([]int64, parentPage.MaxSize+1)
+
+			// copy values to tmp and zero out original arrays
+			copy(tmpKeyArr, parentPage.Keys)
+			copy(tmpValArr, parentPage.Values)
+			parentPage.Keys = make([]K, parentPage.MaxSize)
+			parentPage.Values = make([]int64, parentPage.MaxSize)
 
 			pPrimeId := b.bpm.NewPageId()
 			pGuard, err := b.bpm.WritePage(pPrimeId)
@@ -283,10 +284,10 @@ func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage 
 
 			midPoint := int(math.Ceil(float64(parentPage.MaxSize) / 2))
 
-			copy(parentPage.Keys[:], tmpKeyArr[:midPoint])
-			copy(parentPage.Values[:], tmpValArr[:midPoint])
-			copy(pPrime.Keys[:], tmpKeyArr[midPoint:])
-			copy(pPrime.Values[:], tmpValArr[midPoint:])
+			copy(parentPage.Keys, tmpKeyArr[:midPoint])
+			copy(parentPage.Values, tmpValArr[:midPoint])
+			copy(pPrime.Keys, tmpKeyArr[midPoint:])
+			copy(pPrime.Values, tmpValArr[midPoint:])
 
 			parentPage.Size = int32(midPoint)
 			pPrime.Size = int32(len(tmpKeyArr) - midPoint)
@@ -303,11 +304,22 @@ func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage 
 			}
 			copy(*guard.GetDataMut(), primeData)
 
-			guard.Drop()
-			pGuard.Drop()
 			if err := b.insertInParent(&parentPage.BplusPageHeader, &pPrime.BplusPageHeader, tmpKeyArr[midPoint]); err != nil {
 				return err
 			}
+
+			parentData, err = buffer.ToByteSlice(parentPage)
+			if err != nil {
+				return err
+			}
+			copy(*guard.GetDataMut(), parentData)
+
+			primeData, err = buffer.ToByteSlice(pPrime)
+			if err != nil {
+				return err
+			}
+			copy(*guard.GetDataMut(), primeData)
+
 		}
 	}
 
@@ -355,7 +367,7 @@ func (b *bplusTree[K, V]) isEmpty() bool {
 
 func (b *bplusTree[K, V]) setRootPageId(pageId int64) error {
 	b.header.RootPageId = pageId
-	writeGuard, err := b.bpm.WritePage(HEADER_PAGE_ID)
+	writeGuard, err := b.bpm.WritePage(b.header.RootPageId)
 	defer writeGuard.Drop()
 
 	if err != nil {
