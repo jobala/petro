@@ -108,7 +108,7 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			return false, err
 		}
 
-		if leafPage.Size+1 < leafPage.MaxSize-1 {
+		if leafPage.Size+1 < leafPage.MaxSize {
 			leafPage.addKeyVal(key, value)
 			leafPage.Size += 1
 
@@ -244,7 +244,7 @@ func (b *bplusTree[K, V]) insertInParent(leafPage *BplusPageHeader, newLeafPage 
 			return err
 		}
 
-		if parentPage.Size+1 < parentPage.MaxSize-1 {
+		if parentPage.Size < parentPage.MaxSize {
 			parentPage.addKeyVal(key, newLeafPage.PageId)
 			parentPage.Size += 1
 
