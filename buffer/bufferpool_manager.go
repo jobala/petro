@@ -115,6 +115,7 @@ func (b *BufferpoolManager) WritePage(pageId int64) (*WritePageGuard, error) {
 		} else {
 			if id, _ := b.replacer.evict(); id != disk.INVALID_PAGE_ID {
 				frame = b.frames[id]
+				fmt.Println("---> flushing page: ", pageId)
 				b.flush(frame)
 			}
 		}
@@ -133,6 +134,10 @@ func (b *BufferpoolManager) WritePage(pageId int64) (*WritePageGuard, error) {
 			frame.dirty = true
 			frame.pageId = pageId
 
+			diskReq := disk.NewRequest(pageId, nil, false)
+			respCh := b.diskScheduler.Schedule(diskReq)
+			resp := <-respCh
+			copy(frame.data, resp.Data)
 			return NewWritePageGuard(frame, b), nil
 		}
 

@@ -59,6 +59,10 @@ func TestBPlusTree(t *testing.T) {
 
 		for i := range 30 {
 			val, err := bplus.getValue(i)
+			if err != nil {
+				fmt.Println(err)
+			}
+
 			assert.NoError(t, err)
 			assert.Equal(t, i, val[0])
 		}
