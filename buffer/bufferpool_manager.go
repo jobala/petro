@@ -22,7 +22,7 @@ func NewBufferpoolManager(size int, replacer *lrukReplacer, diskScheduler *disk.
 		freeFrames[i] = i
 	}
 
-	return &BufferpoolManager{
+	bpm := &BufferpoolManager{
 		mu:            sync.Mutex{},
 		frames:        frames,
 		pageTable:     make(map[int64]int),
@@ -30,102 +30,117 @@ func NewBufferpoolManager(size int, replacer *lrukReplacer, diskScheduler *disk.
 		diskScheduler: diskScheduler,
 		freeFrames:    freeFrames,
 	}
+	bpm.cond = *sync.NewCond(&bpm.mu)
+	return bpm
 }
 
 func (b *BufferpoolManager) ReadPage(pageId int64) (*ReadPageGuard, error) {
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	var frame *frame
 
-	if id, ok := b.pageTable[pageId]; ok {
-		frame := b.frames[id]
-		b.mu.Unlock()
+	for {
+		if id, ok := b.pageTable[pageId]; ok {
+			frame := b.frames[id]
 
-		b.replacer.recordAccess(frame.id)
-		b.replacer.setEvictable(frame.id, false)
-		frame.mu.Lock()
-		frame.pin()
+			b.replacer.recordAccess(frame.id)
+			b.replacer.setEvictable(frame.id, false)
+			frame.mu.Lock()
+			frame.pin()
 
-		return NewReadPageGuard(frame, b.replacer), nil
-	}
-
-	if len(b.freeFrames) > 0 {
-		id := b.freeFrames[0]
-		frame = b.frames[id]
-		b.freeFrames = b.freeFrames[1:]
-	} else {
-		id, err := b.replacer.evict()
-		if err != nil {
-			return nil, fmt.Errorf("error getting bufferpool frame")
+			return NewReadPageGuard(frame, b), nil
 		}
 
-		frame = b.frames[id]
-		b.flush(frame)
+		// try to get a frame
+		if len(b.freeFrames) > 0 {
+			id := b.freeFrames[0]
+			frame = b.frames[id]
+			b.freeFrames = b.freeFrames[1:]
+		} else {
+			if id, _ := b.replacer.evict(); id != disk.INVALID_PAGE_ID {
+				frame = b.frames[id]
+				b.flush(frame)
+			}
+		}
+
+		// got a frame
+		if frame != nil {
+			delete(b.pageTable, frame.pageId)
+			b.pageTable[pageId] = frame.id
+
+			b.replacer.recordAccess(frame.id)
+			b.replacer.setEvictable(frame.id, false)
+
+			frame.mu.Lock()
+			frame.reset()
+			frame.pin()
+			frame.pageId = pageId
+			diskReq := disk.NewRequest(pageId, nil, false)
+			respCh := b.diskScheduler.Schedule(diskReq)
+			resp := <-respCh
+			copy(frame.data, resp.Data)
+
+			return NewReadPageGuard(frame, b), nil
+		}
+
+		// failed to get a frame, wait for a frame to become available
+		b.cond.Wait()
 	}
-
-	delete(b.pageTable, frame.pageId)
-	b.pageTable[pageId] = frame.id
-	b.mu.Unlock()
-
-	b.replacer.recordAccess(frame.id)
-	b.replacer.setEvictable(frame.id, false)
-
-	frame.mu.Lock()
-	frame.reset()
-	frame.pin()
-	frame.pageId = pageId
-	diskReq := disk.NewRequest(pageId, nil, false)
-	respCh := b.diskScheduler.Schedule(diskReq)
-	resp := <-respCh
-	copy(frame.data, resp.Data)
-
-	return NewReadPageGuard(frame, b.replacer), nil
 }
 
 func (b *BufferpoolManager) WritePage(pageId int64) (*WritePageGuard, error) {
 	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	var frame *frame
 
-	if id, ok := b.pageTable[pageId]; ok {
-		frame := b.frames[id]
-		b.mu.Unlock()
+	for {
+		if id, ok := b.pageTable[pageId]; ok {
+			frame := b.frames[id]
 
-		b.replacer.recordAccess(frame.id)
-		b.replacer.setEvictable(frame.id, false)
-		frame.mu.Lock()
-		frame.pin()
-		frame.dirty = true
+			b.replacer.recordAccess(frame.id)
+			b.replacer.setEvictable(frame.id, false)
+			frame.mu.Lock()
+			frame.pin()
+			frame.dirty = true
 
-		return NewWritePageGuard(frame, b.replacer), nil
-	}
-
-	if len(b.freeFrames) > 0 {
-		id := b.freeFrames[0]
-		frame = b.frames[id]
-		b.freeFrames = b.freeFrames[1:]
-	} else {
-		id, err := b.replacer.evict()
-		if err != nil {
-			return nil, fmt.Errorf("error getting bufferpool frame")
+			return NewWritePageGuard(frame, b), nil
 		}
 
-		frame = b.frames[id]
-		b.flush(frame)
+		// try getting a frame
+		if len(b.freeFrames) > 0 {
+			id := b.freeFrames[0]
+			frame = b.frames[id]
+			b.freeFrames = b.freeFrames[1:]
+		} else {
+			if id, _ := b.replacer.evict(); id != disk.INVALID_PAGE_ID {
+				frame = b.frames[id]
+				b.flush(frame)
+			}
+		}
+
+		// got the frame, return a page guard
+		if frame != nil {
+			delete(b.pageTable, frame.pageId)
+			b.pageTable[pageId] = frame.id
+
+			b.replacer.recordAccess(frame.id)
+			b.replacer.setEvictable(frame.id, false)
+
+			frame.mu.Lock()
+			frame.reset()
+			frame.pin()
+			frame.dirty = true
+			frame.pageId = pageId
+
+			return NewWritePageGuard(frame, b), nil
+		}
+
+		// failed to get a frame, wait for a frame to become available
+		// pageGuard.Drop will send a signal
+		fmt.Println("waiting for a frame to become available")
+		b.cond.Wait()
 	}
-
-	delete(b.pageTable, frame.pageId)
-	b.pageTable[pageId] = frame.id
-	b.mu.Unlock()
-
-	b.replacer.recordAccess(frame.id)
-	b.replacer.setEvictable(frame.id, false)
-
-	frame.mu.Lock()
-	frame.reset()
-	frame.pin()
-	frame.dirty = true
-	frame.pageId = pageId
-
-	return NewWritePageGuard(frame, b.replacer), nil
 }
 
 func (b *BufferpoolManager) NewPageId() int64 {
@@ -150,4 +165,5 @@ type BufferpoolManager struct {
 	diskScheduler *disk.DiskScheduler
 	replacer      *lrukReplacer
 	freeFrames    []int
+	cond          sync.Cond
 }

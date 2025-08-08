@@ -365,9 +365,8 @@ func (b *bplusTree[K, V]) setRootPageId(pageId int64) error {
 	b.header.RootPageId = pageId
 	writeGuard, err := b.bpm.WritePage(HEADER_PAGE_ID)
 	defer writeGuard.Drop()
-
 	if err != nil {
-		return fmt.Errorf("error setting rootPageId")
+		return fmt.Errorf("error setting rootPageId: %v", err)
 	}
 
 	data, err := buffer.ToByteSlice(b.header)

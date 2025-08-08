@@ -78,12 +78,10 @@ func (lru *lrukReplacer) evict() (int, error) {
 		curr = curr.prev
 	}
 
-	// no evictable nodes found
 	if curr == nil {
-		return INVALID_FRAME_ID, nil
+		return INVALID_FRAME_ID, fmt.Errorf("no evictable nodes found")
 	}
 
-	// continue search for better eviction candidate
 	curr = curr.prev
 	for curr != lru.head {
 		if !curr.isEvictable {
