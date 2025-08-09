@@ -3,11 +3,9 @@ package buffer
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 )
 
 func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
-	fmt.Println("readguard locking frame: ", frame.id)
 	return &ReadPageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -17,7 +15,6 @@ func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
 }
 
 func NewWritePageGuard(frame *frame, bpm *BufferpoolManager) *WritePageGuard {
-	fmt.Println("writeguard locking frame: ", frame.id)
 	return &WritePageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -31,7 +28,6 @@ func (pg *PageGuard) Drop() {
 		return
 	}
 
-	fmt.Println("releasing frame: ", pg.frame.id)
 	pg.frame.unpin()
 	if pg.frame.pins.Load() == 0 {
 		pg.bpm.replacer.setEvictable(pg.frame.id, true)

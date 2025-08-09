@@ -12,7 +12,7 @@ import (
 )
 
 func TestBPlusTree(t *testing.T) {
-	t.Run("can insert and retrieve values", func(t *testing.T) {
+	t.Run("values are store in order in single node tree", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -41,7 +41,7 @@ func TestBPlusTree(t *testing.T) {
 		}
 	})
 
-	t.Run("leaf nodes split when values > max size", func(t *testing.T) {
+	t.Run("leaf nodes split into two leaf nodes", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -67,6 +67,8 @@ func TestBPlusTree(t *testing.T) {
 			assert.Equal(t, i, val[0])
 		}
 	})
+
+	t.Run("parent nodes split into two parent nodes", func(t *testing.T) {})
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {

@@ -123,6 +123,7 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			copy(*guard.GetDataMut(), data)
 			guard.Drop()
 		} else {
+			// create new leaf node
 			newLeafId := b.bpm.NewPageId()
 			newGuard, err := b.bpm.WritePage(newLeafId)
 			if err != nil {
@@ -130,7 +131,6 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 				newGuard.Drop()
 				return false, err
 			}
-
 			newLeafPage, err := buffer.ToStruct[bplusLeafPage[K, V]](*newGuard.GetDataMut())
 			if err != nil {
 				guard.Drop()
@@ -196,8 +196,8 @@ func (b *bplusTree[K, V]) insertInParent(leafGuard *buffer.WritePageGuard, newLe
 	leafPage, _ := buffer.ToStruct[bplusInternalPage[K]](*leafGuard.GetDataMut())
 	newLeafPage, _ := buffer.ToStruct[bplusInternalPage[K]](*newLeafGuard.GetDataMut())
 	leafParent := leafPage.Parent
-	fmt.Println("leafPage", leafPage.Keys)
-	fmt.Println("newLeafPage", newLeafPage.Keys)
+	fmt.Println("leafPage", leafPage.PageId, leafPage.Keys, leafPage.Values)
+	fmt.Println("newLeafPage", newLeafPage.PageId, newLeafPage.Keys, newLeafPage.Values)
 
 	leafIsRoot := leafPage.PageId == b.header.RootPageId
 	if leafIsRoot {
@@ -323,11 +323,11 @@ func (b *bplusTree[K, V]) insertInParent(leafGuard *buffer.WritePageGuard, newLe
 
 			copy(parentPage.Keys, tmpKeyArr[:midPoint])
 			copy(parentPage.Values, tmpValArr[:midPoint])
-			copy(pPrime.Keys, tmpKeyArr[midPoint:])
+			copy(pPrime.Keys[1:], tmpKeyArr[midPoint+1:])
 			copy(pPrime.Values, tmpValArr[midPoint:])
 
 			parentPage.Size = int32(midPoint)
-			pPrime.Size = int32(parentPage.MaxSize-int32(midPoint)) + 1
+			pPrime.Size = int32(parentPage.MaxSize - int32(midPoint))
 
 			parentData, err := buffer.ToByteSlice(parentPage)
 			if err != nil {
