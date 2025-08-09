@@ -387,7 +387,6 @@ func (b *bplusTree[K, V]) findLeafPageId(rootPageId int64, key K) (int64, error)
 
 		if currPage.isLeafPage() {
 			guard.Drop()
-			fmt.Printf("page %d, parent %d\n", currPage.PageId, currPage.Parent)
 			return currPageId, nil
 		}
 

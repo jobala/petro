@@ -51,13 +51,13 @@ func TestBPlusTree(t *testing.T) {
 		bplus, err := NewBplusTree[int, int]("test", bpm)
 		assert.NoError(t, err)
 
-		for i := range 30 {
+		for i := range 100 {
 			inserted, err := bplus.insert(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
-		for i := range 30 {
+		for i := range 100 {
 			val, err := bplus.getValue(i)
 			if err != nil {
 				fmt.Println(err)
@@ -72,11 +72,11 @@ func TestBPlusTree(t *testing.T) {
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {
-	replacer := buffer.NewLrukReplacer(10, 2)
+	replacer := buffer.NewLrukReplacer(100, 2)
 	diskMgr := disk.NewManager(file)
 	diskScheduler := disk.NewScheduler(diskMgr)
 
-	return buffer.NewBufferpoolManager(10, replacer, diskScheduler)
+	return buffer.NewBufferpoolManager(100, replacer, diskScheduler)
 }
 
 func CreateDbFile(t *testing.T) *os.File {
