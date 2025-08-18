@@ -16,5 +16,6 @@ A simple key value storage engine
   - [x] Insert
   - [ ] Iterator
   - [ ] Delete
+  - [ ] Duplicate Keys
 - [ ] Transactions
 - [ ] Recovery
