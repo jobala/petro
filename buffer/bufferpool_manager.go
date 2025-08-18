@@ -45,7 +45,7 @@ func (b *BufferpoolManager) ReadPage(pageId int64) (*ReadPageGuard, error) {
 
 			b.replacer.recordAccess(frame.id)
 			b.replacer.setEvictable(frame.id, false)
-			frame.mu.Lock()
+			frame.mu.RLock()
 			frame.pin()
 
 			return NewReadPageGuard(frame, b), nil
@@ -71,7 +71,7 @@ func (b *BufferpoolManager) ReadPage(pageId int64) (*ReadPageGuard, error) {
 			b.replacer.recordAccess(frame.id)
 			b.replacer.setEvictable(frame.id, false)
 
-			frame.mu.Lock()
+			frame.mu.RLock()
 			frame.reset()
 			frame.pin()
 			frame.pageId = pageId
