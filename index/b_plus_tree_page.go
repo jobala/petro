@@ -3,6 +3,7 @@ package index
 import (
 	"cmp"
 	"slices"
+	"unsafe"
 )
 
 func (p *BplusPageHeader[K, V]) keyAt(idx int) K {
@@ -46,8 +47,16 @@ func (p *BplusPageHeader[K, V]) addKeyVal(key K, val V) {
 	p.Keys = slices.Insert(p.Keys, insertIdx, key)
 	p.Values = slices.Insert(p.Values, insertIdx, val)
 }
-func (h *BplusPageHeader[K, V]) isLeafPage() bool {
-	return h.PageType == LEAF_PAGE
+func (p *BplusPageHeader[K, V]) isLeafPage() bool {
+	return p.PageType == LEAF_PAGE
+}
+
+func (p *BplusPageHeader[K, V]) toBytes() []byte {
+	return unsafe.Slice((*byte)(unsafe.Pointer(p)), unsafe.Sizeof(&p))
+}
+
+func ToStruct[T any](data []byte) *T {
+	return (*T)(unsafe.Pointer(&data[0]))
 }
 
 type BplusPageHeader[K cmp.Ordered, V any] struct {

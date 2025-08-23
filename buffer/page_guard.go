@@ -1,10 +1,5 @@
 package buffer
 
-import (
-	"bytes"
-	"encoding/gob"
-)
-
 func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
 	return &ReadPageGuard{
 		PageGuard: PageGuard{
@@ -61,27 +56,6 @@ func (pg *ReadPageGuard) GetData() []byte {
 
 func (pg *WritePageGuard) GetDataMut() *[]byte {
 	return &pg.frame.data
-}
-
-func ToByteSlice[T any](obj T) ([]byte, error) {
-	var buffer bytes.Buffer
-	gob := gob.NewEncoder(&buffer)
-	if err := gob.Encode(obj); err != nil {
-		return nil, err
-	}
-
-	return buffer.Bytes(), nil
-}
-
-func ToStruct[T any](data []byte) (T, error) {
-	var res T
-	gob := gob.NewDecoder(bytes.NewReader(data))
-	if err := gob.Decode(&res); err != nil {
-
-		return res, nil
-	}
-
-	return res, nil
 }
 
 type PageGuard struct {
