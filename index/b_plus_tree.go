@@ -334,5 +334,9 @@ type headerPage struct {
 }
 
 func (h *headerPage) toBytes() []byte {
-	return unsafe.Slice((*byte)(unsafe.Pointer(h)), unsafe.Sizeof(&h))
+	res := make([]byte, 4096)
+	bytes := unsafe.Slice((*byte)(unsafe.Pointer(h)), unsafe.Sizeof(*h))
+	copy(res, bytes)
+
+	return res
 }

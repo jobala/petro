@@ -51,10 +51,6 @@ func (p *BplusPageHeader[K, V]) isLeafPage() bool {
 	return p.PageType == LEAF_PAGE
 }
 
-func (p *BplusPageHeader[K, V]) toBytes() []byte {
-	return unsafe.Slice((*byte)(unsafe.Pointer(p)), unsafe.Sizeof(&p))
-}
-
 func ToStruct[T any](data []byte) *T {
 	return (*T)(unsafe.Pointer(&data[0]))
 }
