@@ -1,8 +1,8 @@
 package buffer
 
 import (
-	"bytes"
-	"encoding/gob"
+	"github.com/jobala/petro/storage/disk"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
@@ -64,20 +64,21 @@ func (pg *WritePageGuard) GetDataMut() *[]byte {
 }
 
 func ToByteSlice[T any](obj T) ([]byte, error) {
-	var buffer bytes.Buffer
-	gob := gob.NewEncoder(&buffer)
-	if err := gob.Encode(obj); err != nil {
+	res := make([]byte, disk.PAGE_SIZE)
+
+	data, err := msgpack.Marshal(obj)
+	if err != nil {
 		return nil, err
 	}
+	copy(res, data)
 
-	return buffer.Bytes(), nil
+	return res, nil
 }
 
 func ToStruct[T any](data []byte) (T, error) {
 	var res T
-	gob := gob.NewDecoder(bytes.NewReader(data))
-	if err := gob.Decode(&res); err != nil {
 
+	if err := msgpack.Unmarshal(data, &res); err != nil {
 		return res, nil
 	}
 
