@@ -5,7 +5,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
+func NewReadPageGuard(frame *Frame, bpm *BufferpoolManager) *ReadPageGuard {
 	return &ReadPageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -14,7 +14,7 @@ func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
 	}
 }
 
-func NewWritePageGuard(frame *frame, bpm *BufferpoolManager) *WritePageGuard {
+func NewWritePageGuard(frame *Frame, bpm *BufferpoolManager) *WritePageGuard {
 	return &WritePageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -56,11 +56,11 @@ func (pg *WritePageGuard) Drop() {
 }
 
 func (pg *ReadPageGuard) GetData() []byte {
-	return pg.frame.data
+	return pg.frame.Data
 }
 
 func (pg *WritePageGuard) GetDataMut() *[]byte {
-	return &pg.frame.data
+	return &pg.frame.Data
 }
 
 func ToByteSlice[T any](obj T) ([]byte, error) {
@@ -86,7 +86,7 @@ func ToStruct[T any](data []byte) (T, error) {
 }
 
 type PageGuard struct {
-	frame *frame
+	frame *Frame
 	bpm   *BufferpoolManager
 }
 
