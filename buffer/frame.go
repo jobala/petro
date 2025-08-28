@@ -7,24 +7,24 @@ import (
 	"github.com/jobala/petro/storage/disk"
 )
 
-func (f *frame) pin() {
+func (f *Frame) pin() {
 	f.pins.Add(1)
 }
 
-func (f *frame) unpin() int32 {
+func (f *Frame) unpin() int32 {
 	return f.pins.Add(-1)
 }
 
-func (f *frame) reset() {
+func (f *Frame) reset() {
 	f.dirty = false
 	f.pins.Store(0)
-	f.data = make([]byte, disk.PAGE_SIZE)
+	f.Data = make([]byte, disk.PAGE_SIZE)
 }
 
-type frame struct {
+type Frame struct {
+	Data   []byte
 	mu     sync.RWMutex
 	id     int
-	data   []byte
 	pins   atomic.Int32
 	dirty  bool
 	pageId int64

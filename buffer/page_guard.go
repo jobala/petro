@@ -1,11 +1,11 @@
 package buffer
 
 import (
-	"bytes"
-	"encoding/gob"
+	"github.com/jobala/petro/storage/disk"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
-func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
+func NewReadPageGuard(frame *Frame, bpm *BufferpoolManager) *ReadPageGuard {
 	return &ReadPageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -14,7 +14,7 @@ func NewReadPageGuard(frame *frame, bpm *BufferpoolManager) *ReadPageGuard {
 	}
 }
 
-func NewWritePageGuard(frame *frame, bpm *BufferpoolManager) *WritePageGuard {
+func NewWritePageGuard(frame *Frame, bpm *BufferpoolManager) *WritePageGuard {
 	return &WritePageGuard{
 		PageGuard: PageGuard{
 			frame: frame,
@@ -56,28 +56,29 @@ func (pg *WritePageGuard) Drop() {
 }
 
 func (pg *ReadPageGuard) GetData() []byte {
-	return pg.frame.data
+	return pg.frame.Data
 }
 
 func (pg *WritePageGuard) GetDataMut() *[]byte {
-	return &pg.frame.data
+	return &pg.frame.Data
 }
 
 func ToByteSlice[T any](obj T) ([]byte, error) {
-	var buffer bytes.Buffer
-	gob := gob.NewEncoder(&buffer)
-	if err := gob.Encode(obj); err != nil {
+	res := make([]byte, disk.PAGE_SIZE)
+
+	data, err := msgpack.Marshal(obj)
+	if err != nil {
 		return nil, err
 	}
+	copy(res, data)
 
-	return buffer.Bytes(), nil
+	return res, nil
 }
 
 func ToStruct[T any](data []byte) (T, error) {
 	var res T
-	gob := gob.NewDecoder(bytes.NewReader(data))
-	if err := gob.Decode(&res); err != nil {
 
+	if err := msgpack.Unmarshal(data, &res); err != nil {
 		return res, nil
 	}
 
@@ -85,7 +86,7 @@ func ToStruct[T any](data []byte) (T, error) {
 }
 
 type PageGuard struct {
-	frame *frame
+	frame *Frame
 	bpm   *BufferpoolManager
 }
 
