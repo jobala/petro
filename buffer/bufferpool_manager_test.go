@@ -28,10 +28,12 @@ func TestBufferPoolManager(t *testing.T) {
 		copy(data, []byte("hello, world!"))
 		syncWrite(pageId, data, diskScheduler)
 
-		bufferMgr.GetPage(int64(pageId), read, func(frame *Frame) {
-			assert.Equal(t, data, frame.Data)
-			assert.Equal(t, 0, frame.id)
-		})
+		pageGuard, err := bufferMgr.ReadPage(int64(pageId))
+		defer pageGuard.Drop()
+		assert.NoError(t, err)
+
+		assert.Equal(t, data, pageGuard.GetData())
+		assert.Equal(t, data, bufferMgr.frames[0].data)
 	})
 
 	t.Run("evicts least recently used page", func(t *testing.T) {
@@ -54,18 +56,23 @@ func TestBufferPoolManager(t *testing.T) {
 
 		// access page 2 many times
 		for range 5 {
-			bufferMgr.GetPage(int64(2), read, func(frame *Frame) {
-			})
+			pageGuard, err := bufferMgr.ReadPage(int64(2))
+			assert.NoError(t, err)
+			pageGuard.Drop()
 		}
 
 		// access page 1 to make page 2 least recently used
-		bufferMgr.GetPage(int64(1), read, func(frame *Frame) {})
+		pageGuard, err := bufferMgr.ReadPage(int64(1))
+		assert.NoError(t, err)
+		pageGuard.Drop()
 
 		// accessing page 3 should evict page 1
 		for i := range len(content) {
-			bufferMgr.GetPage(int64(i+1), read, func(frame *Frame) {
-				assert.Equal(t, string(bytes.Trim(frame.Data, "\x00")), content[i])
-			})
+			pageGuard, err := bufferMgr.ReadPage(int64(i + 1))
+
+			assert.NoError(t, err)
+			assert.Equal(t, string(bytes.Trim(pageGuard.GetData(), "\x00")), content[i])
+			pageGuard.Drop()
 		}
 
 		// page id 1, should have been evicted
@@ -92,11 +99,13 @@ func TestBufferPoolManager(t *testing.T) {
 		data := make([]byte, disk.PAGE_SIZE)
 		copy(data, []byte("hello, world!"))
 
-		bufferMgr.GetPage(int64(pageId), write, func(frame *Frame) {
-			frame.Data = data
-			assert.True(t, bufferMgr.frames[0].dirty, true)
-			assert.Equal(t, data, bufferMgr.frames[0].Data)
-		})
+		pageGuard, err := bufferMgr.WritePage(int64(pageId))
+		copy(*pageGuard.GetDataMut(), data)
+		defer pageGuard.Drop()
+
+		assert.NoError(t, err)
+		assert.Equal(t, data, bufferMgr.frames[0].data)
+		assert.True(t, bufferMgr.frames[0].dirty, true)
 
 		bufferMgr.flush(bufferMgr.frames[0])
 		res := syncRead(pageId, diskScheduler)
@@ -119,9 +128,11 @@ func TestBufferPoolManager(t *testing.T) {
 			data := make([]byte, disk.PAGE_SIZE)
 			copy(data, []byte(d))
 
-			bufferMgr.GetPage(int64(pageId+1), write, func(frame *Frame) {
-				frame.Data = data
-			})
+			pageGuard, err := bufferMgr.WritePage(int64(pageId + 1))
+			copy(*pageGuard.GetDataMut(), data)
+			pageGuard.Drop()
+
+			assert.NoError(t, err)
 		}
 
 		// page 1 should have been evicted and flushed to disk
@@ -144,16 +155,19 @@ func TestBufferPoolManager(t *testing.T) {
 		for pageId, d := range content {
 			data := make([]byte, disk.PAGE_SIZE)
 			copy(data, []byte(d))
+			pageGuard, err := bufferMgr.WritePage(int64(pageId + 1))
+			copy(*pageGuard.GetDataMut(), data)
+			pageGuard.Drop()
 
-			bufferMgr.GetPage(int64(pageId+1), write, func(frame *Frame) {
-				frame.Data = data
-			})
+			assert.NoError(t, err)
 		}
 
 		for pageId, data := range content {
-			bufferMgr.GetPage(int64(pageId+1), read, func(frame *Frame) {
-				assert.Equal(t, data, string(bytes.Trim(frame.Data, "\x00")))
-			})
+			pageGuard, err := bufferMgr.ReadPage(int64(pageId + 1))
+			pageGuard.Drop()
+
+			assert.NoError(t, err)
+			assert.Equal(t, data, string(bytes.Trim(pageGuard.GetData(), "\x00")))
 		}
 	})
 }
