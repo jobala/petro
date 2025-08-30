@@ -29,13 +29,13 @@ func TestBPlusTree(t *testing.T) {
 		}
 
 		for k, v := range register {
-			inserted, err := bplus.insert(k, v)
+			inserted, err := bplus.Insert(k, v)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
 		for k, v := range register {
-			val, err := bplus.getValue(k)
+			val, err := bplus.GetValue(k)
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
 		}
@@ -51,14 +51,14 @@ func TestBPlusTree(t *testing.T) {
 		bplus, err := NewBplusTree[int, int]("test", bpm)
 		assert.NoError(t, err)
 
-		for i := 40; i >= 0; i-- {
-			inserted, err := bplus.insert(i, i)
+		for i := 100; i >= 0; i-- {
+			inserted, err := bplus.Insert(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
-		for i := range 40 {
-			val, err := bplus.getValue(i)
+		for i := range 100 {
+			val, err := bplus.GetValue(i)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -69,6 +69,38 @@ func TestBPlusTree(t *testing.T) {
 	})
 
 	t.Run("parent nodes split into two parent nodes", func(t *testing.T) {})
+
+	t.Run("index iterator", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[int, int]("test", bpm)
+		assert.NoError(t, err)
+
+		for i := 100; i >= 0; i-- {
+			inserted, err := bplus.Insert(i, i)
+			assert.NoError(t, err)
+			assert.True(t, inserted)
+		}
+
+		expected := []int{}
+		for i := range 101 {
+			expected = append(expected, i)
+		}
+
+		indexIter := bplus.GetIterator()
+		res := []int{}
+		for !indexIter.IsEnd() {
+			val, err := indexIter.Next()
+			assert.NoError(t, err)
+			res = append(res, val)
+		}
+
+		assert.Equal(t, res, expected)
+	})
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {

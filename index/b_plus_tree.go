@@ -33,7 +33,7 @@ func NewBplusTree[K cmp.Ordered, V any](name string, bpm *buffer.BufferpoolManag
 	}, nil
 }
 
-func (b *bplusTree[K, V]) getValue(key K) ([]V, error) {
+func (b *bplusTree[K, V]) GetValue(key K) ([]V, error) {
 	res := make([]V, 0)
 	leafPageId, err := b.findLeafPageId(b.header.RootPageId, key)
 	if err != nil {
@@ -60,7 +60,7 @@ func (b *bplusTree[K, V]) getValue(key K) ([]V, error) {
 	return res, nil
 }
 
-func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
+func (b *bplusTree[K, V]) Insert(key K, value V) (bool, error) {
 	if b.isEmpty() {
 		pageId := b.bpm.NewPageId()
 		guard, err := b.bpm.WritePage(pageId)
@@ -91,6 +91,9 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			guard.Drop()
 			return false, err
 		}
+
+		// used by iterator
+		b.firstPageId = leafPage.PageId
 
 		guard.Drop()
 	} else {
@@ -153,9 +156,10 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 			leafPage.Values = make([]V, leafPage.MaxSize)
 
 			tmpNexPage := leafPage.Next
-			newLeafPage.Next = tmpNexPage
 			leafPage.Next = newLeafId
-			newLeafPage.Prev = leafPage.PageId
+			newLeafPage.Next = tmpNexPage
+
+			// newLeafPage.Prev = leafPage.PageId
 
 			midPoint := int(math.Ceil(float64(leafPage.MaxSize) / 2))
 
@@ -190,6 +194,10 @@ func (b *bplusTree[K, V]) insert(key K, value V) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (b *bplusTree[K, V]) GetIterator() *indexIterator[K, V] {
+	return NewIndexIterator[K, V](b.firstPageId, b.bpm)
 }
 
 func (b *bplusTree[K, V]) insertInParent(leafGuard *buffer.WritePageGuard, newLeafGuard *buffer.WritePageGuard, key K) error {
@@ -426,11 +434,16 @@ func (b *bplusTree[K, V]) setRootPageId(pageId int64) error {
 }
 
 type bplusTree[K cmp.Ordered, V any] struct {
-	bpm       *buffer.BufferpoolManager
-	indexName string
-	header    headerPage
+	bpm         *buffer.BufferpoolManager
+	indexName   string
+	header      headerPage
+	firstPageId int64
 }
 
 type headerPage struct {
 	RootPageId int64
+	/* TODO: track the following
+	1. first leaf page
+	2. last issued paged id
+	*/
 }
