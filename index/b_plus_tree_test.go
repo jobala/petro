@@ -12,7 +12,7 @@ import (
 )
 
 func TestBPlusTree(t *testing.T) {
-	t.Run("values are store in order in single node tree", func(t *testing.T) {
+	t.Run("stored values can be retrieved", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -34,14 +34,19 @@ func TestBPlusTree(t *testing.T) {
 			assert.True(t, inserted)
 		}
 
+		res := []string{}
 		for k, v := range register {
 			val, err := bplus.GetValue(k)
+			res = append(res, k)
+
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
 		}
+
+		assert.Equal(t, []string{"doe, jane, john"}, res)
 	})
 
-	t.Run("leaf nodes split into two leaf nodes", func(t *testing.T) {
+	t.Run("can store items larger than page's max size", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -68,9 +73,7 @@ func TestBPlusTree(t *testing.T) {
 		}
 	})
 
-	t.Run("parent nodes split into two parent nodes", func(t *testing.T) {})
-
-	t.Run("index iterator", func(t *testing.T) {
+	t.Run("can iterate through stored values", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())

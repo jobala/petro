@@ -12,7 +12,7 @@ func NewIndexIterator[K cmp.Ordered, V any](pageId int64, bpm *buffer.Bufferpool
 	firstPage, _ := buffer.ToStruct[bplusLeafPage[K, V]](guard.GetData())
 
 	return &indexIterator[K, V]{
-		currPage: &firstPage,
+		currPage: firstPage,
 		bpm:      bpm,
 		pos:      0,
 	}
@@ -38,7 +38,7 @@ func (it *indexIterator[K, V]) Next() (V, error) {
 	if err != nil {
 		return res, fmt.Errorf("error casting page: %v", err)
 	}
-	it.currPage = &nextPage
+	it.currPage = nextPage
 
 	res = it.currPage.valueAt(it.pos)
 	it.pos += 1
@@ -51,6 +51,6 @@ func (it *indexIterator[K, V]) IsEnd() bool {
 
 type indexIterator[K cmp.Ordered, V any] struct {
 	pos      int
-	currPage *bplusLeafPage[K, V]
+	currPage bplusLeafPage[K, V]
 	bpm      *buffer.BufferpoolManager
 }
