@@ -65,6 +65,10 @@ for !storeIter.IsEnd() {
 }
 ```
 
+### durability
+
+call `store.flush()` to ensure that your data is written to disk
+
 ## Design Notes
 
 - [Disk Management](https://japhethobala.com/posts/technical/db-disk-mgmt)
@@ -79,6 +83,6 @@ for !storeIter.IsEnd() {
   - [x] Insert
   - [x] Iterator
   - [ ] Delete
-  - [ ] Duplicate Keys
+  - [ ] Support duplicate keys
 - [ ] Transactions
 - [ ] Recovery
