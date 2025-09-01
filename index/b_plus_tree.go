@@ -33,7 +33,7 @@ func NewBplusTree[K cmp.Ordered, V any](name string, bpm *buffer.BufferpoolManag
 	}, nil
 }
 
-func (b *bplusTree[K, V]) GetValue(key K) ([]V, error) {
+func (b *bplusTree[K, V]) Get(key K) ([]V, error) {
 	res := make([]V, 0)
 	leafPageId, err := b.findLeafPageId(b.header.RootPageId, key)
 	if err != nil {
@@ -61,7 +61,7 @@ func (b *bplusTree[K, V]) GetValue(key K) ([]V, error) {
 	return res, nil
 }
 
-func (b *bplusTree[K, V]) Insert(key K, value V) (bool, error) {
+func (b *bplusTree[K, V]) Put(key K, value V) (bool, error) {
 	if b.isEmpty() {
 		pageId := b.bpm.NewPageId()
 		guard, err := b.bpm.WritePage(pageId)

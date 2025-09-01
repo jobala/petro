@@ -29,13 +29,13 @@ func TestBPlusTree(t *testing.T) {
 		}
 
 		for k, v := range register {
-			inserted, err := bplus.Insert(k, v)
+			inserted, err := bplus.Put(k, v)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
 		for k, v := range register {
-			val, err := bplus.GetValue(k)
+			val, err := bplus.Get(k)
 
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
@@ -54,13 +54,13 @@ func TestBPlusTree(t *testing.T) {
 		assert.NoError(t, err)
 
 		for i := 100; i >= 0; i-- {
-			inserted, err := bplus.Insert(i, i)
+			inserted, err := bplus.Put(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
 		for i := range 100 {
-			val, err := bplus.GetValue(i)
+			val, err := bplus.Get(i)
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -82,7 +82,7 @@ func TestBPlusTree(t *testing.T) {
 
 		// insert values in reverse order
 		for i := 100; i >= 0; i-- {
-			inserted, err := bplus.Insert(i, i)
+			inserted, err := bplus.Put(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
@@ -121,11 +121,11 @@ func TestBPlusTree(t *testing.T) {
 			"jane": 40,
 		}
 
-		err = bplus.BatchInsert(register)
+		err = bplus.PutBatch(register)
 		assert.NoError(t, err)
 
 		for k, v := range register {
-			val, err := bplus.GetValue(k)
+			val, err := bplus.Get(k)
 
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
@@ -144,7 +144,7 @@ func TestBPlusTree(t *testing.T) {
 
 		// insert values in reverse order
 		for i := 100; i >= 0; i-- {
-			inserted, err := bplus.Insert(i, i)
+			inserted, err := bplus.Put(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
@@ -164,11 +164,11 @@ func TestBPlusTree(t *testing.T) {
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {
-	replacer := buffer.NewLrukReplacer(5, 2)
+	replacer := buffer.NewLrukReplacer(buffer.BUFFER_CAPACITY, 2)
 	diskMgr := disk.NewManager(file)
 	diskScheduler := disk.NewScheduler(diskMgr)
 
-	return buffer.NewBufferpoolManager(5, replacer, diskScheduler)
+	return buffer.NewBufferpoolManager(buffer.BUFFER_CAPACITY, replacer, diskScheduler)
 }
 
 func CreateDbFile(t *testing.T) *os.File {
