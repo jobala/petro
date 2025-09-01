@@ -14,7 +14,7 @@ A simple key value storage engine
 - [ ] Index Management
   - [x] GetValue
   - [x] Insert
-  - [ ] Iterator
+  - [x] Iterator
   - [ ] Delete
   - [ ] Duplicate Keys
 - [ ] Transactions
