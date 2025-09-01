@@ -34,16 +34,13 @@ func TestBPlusTree(t *testing.T) {
 			assert.True(t, inserted)
 		}
 
-		res := []string{}
 		for k, v := range register {
 			val, err := bplus.GetValue(k)
-			res = append(res, k)
 
 			assert.NoError(t, err)
 			assert.Equal(t, v, val[0])
 		}
 
-		assert.Equal(t, []string{"doe, jane, john"}, res)
 	})
 
 	t.Run("can store items larger than page's max size", func(t *testing.T) {
@@ -73,7 +70,7 @@ func TestBPlusTree(t *testing.T) {
 		}
 	})
 
-	t.Run("can iterate through stored values", func(t *testing.T) {
+	t.Run("values are stored in order", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -83,17 +80,20 @@ func TestBPlusTree(t *testing.T) {
 		bplus, err := NewBplusTree[int, int]("test", bpm)
 		assert.NoError(t, err)
 
+		// insert values in reverse order
 		for i := 100; i >= 0; i-- {
 			inserted, err := bplus.Insert(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
+		// generate control-check that is in-order
 		expected := []int{}
 		for i := range 101 {
 			expected = append(expected, i)
 		}
 
+		// retrieve stored values
 		indexIter := bplus.GetIterator()
 		res := []int{}
 		for !indexIter.IsEnd() {

@@ -47,7 +47,6 @@ func (b *bplusTree[K, V]) GetValue(key K) ([]V, error) {
 	defer guard.Drop()
 
 	leafPage, err := buffer.ToStruct[bplusLeafPage[K, V]](guard.GetData())
-	fmt.Printf("%+v\n", leafPage)
 
 	if err != nil {
 		return nil, err

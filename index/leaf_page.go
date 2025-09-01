@@ -13,7 +13,7 @@ const (
 )
 
 const HEADER_PAGE_ID = 0
-const SLOT_SIZE = 5
+const SLOT_SIZE = 100
 
 func (p *bplusLeafPage[K, V]) init(pageId, parentPageId int64) {
 	p.PageType = LEAF_PAGE
