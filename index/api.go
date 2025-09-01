@@ -25,9 +25,9 @@ func (b *bplusTree[K, V]) GetKeyRange(start, stop K) ([]V, error) {
 	return res, nil
 }
 
-func (b *bplusTree[K, V]) BatchInsert(items map[K]V) error {
+func (b *bplusTree[K, V]) PutBatch(items map[K]V) error {
 	for k, v := range items {
-		if _, err := b.Insert(k, v); err != nil {
+		if _, err := b.Put(k, v); err != nil {
 			return err
 		}
 	}
