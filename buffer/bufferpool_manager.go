@@ -8,6 +8,8 @@ import (
 	"github.com/jobala/petro/storage/disk"
 )
 
+const BUFFER_CAPACITY = 20
+
 func NewBufferpoolManager(size int, replacer *lrukReplacer, diskScheduler *disk.DiskScheduler) *BufferpoolManager {
 	frames := make([]*frame, size)
 	freeFrames := make([]int, size)

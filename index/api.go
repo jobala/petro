@@ -1,5 +1,22 @@
 package index
 
+import (
+	"cmp"
+	"os"
+
+	"github.com/jobala/petro/buffer"
+	"github.com/jobala/petro/storage/disk"
+)
+
+func New[K cmp.Ordered, V any](file *os.File) (*bplusTree[K, V], error) {
+	replacer := buffer.NewLrukReplacer(buffer.BUFFER_CAPACITY, 2)
+	diskMgr := disk.NewManager(file)
+	diskScheduler := disk.NewScheduler(diskMgr)
+	bpm := buffer.NewBufferpoolManager(buffer.BUFFER_CAPACITY, replacer, diskScheduler)
+
+	return NewBplusTree[K, V]("default", bpm)
+}
+
 func (b *bplusTree[K, V]) GetIterator() *indexIterator[K, V] {
 	return NewIndexIterator[K, V](b.firstPageId, b.bpm)
 }
