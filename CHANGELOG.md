@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/jobala/petro/compare/v1.2.0...v1.3.0) (2025-09-01)
+
+
+### Features
+
+* update api and add docs ([#19](https://github.com/jobala/petro/issues/19)) ([d64f0e8](https://github.com/jobala/petro/commit/d64f0e87f4c4cc4d04ec7de603a47e63c8521b43))
+
 ## [1.2.0](https://github.com/jobala/petro/compare/v1.1.0...v1.2.0) (2025-09-01)
 
 
