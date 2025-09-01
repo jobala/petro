@@ -153,6 +153,12 @@ func (b *BufferpoolManager) NewPageId() int64 {
 	return b.nextPageId.Add(1)
 }
 
+func (b *BufferpoolManager) FlushAll() {
+	for _, frame := range b.frames {
+		b.flush(frame)
+	}
+}
+
 func (b *BufferpoolManager) flush(frame *frame) {
 	if frame.dirty {
 		writeReq := disk.NewRequest(frame.pageId, frame.data, true)

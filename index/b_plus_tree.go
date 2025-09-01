@@ -23,13 +23,13 @@ func NewBplusTree[K cmp.Ordered, V any](name string, bpm *buffer.BufferpoolManag
 		return nil, fmt.Errorf("error getting header page: %v", err)
 	}
 
-	headerPage.RootPageId = disk.INVALID_PAGE_ID
 	*headerData, _ = buffer.ToByteSlice(headerPage)
 
 	return &bplusTree[K, V]{
-		indexName: name,
-		bpm:       bpm,
-		header:    headerPage,
+		indexName:   name,
+		bpm:         bpm,
+		header:      headerPage,
+		firstPageId: 1,
 	}, nil
 }
 
@@ -409,7 +409,12 @@ func (b *bplusTree[K, V]) findLeafPageId(rootPageId int64, key K) (int64, error)
 }
 
 func (b *bplusTree[K, V]) isEmpty() bool {
-	return b.header.RootPageId == disk.INVALID_PAGE_ID
+	// TODO: use appropriate variable name
+	return b.header.RootPageId == 0
+}
+
+func (b *bplusTree[K, V]) Flush() {
+	b.bpm.FlushAll()
 }
 
 func (b *bplusTree[K, V]) setRootPageId(pageId int64) error {
