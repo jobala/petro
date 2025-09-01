@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/jobala/petro/compare/v1.3.0...v1.3.1) (2025-09-01)
+
+
+### Bug Fixes
+
+* docs ([#21](https://github.com/jobala/petro/issues/21)) ([537b296](https://github.com/jobala/petro/commit/537b2968b49601fed9cbd52ef6e8eb1738cd16f2))
+
 ## [1.3.0](https://github.com/jobala/petro/compare/v1.2.0...v1.3.0) (2025-09-01)
 
 
