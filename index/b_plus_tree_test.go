@@ -164,11 +164,11 @@ func TestBPlusTree(t *testing.T) {
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {
-	replacer := buffer.NewLrukReplacer(5, 2)
+	replacer := buffer.NewLrukReplacer(buffer.BUFFER_CAPACITY, 2)
 	diskMgr := disk.NewManager(file)
 	diskScheduler := disk.NewScheduler(diskMgr)
 
-	return buffer.NewBufferpoolManager(5, replacer, diskScheduler)
+	return buffer.NewBufferpoolManager(buffer.BUFFER_CAPACITY, replacer, diskScheduler)
 }
 
 func CreateDbFile(t *testing.T) *os.File {
