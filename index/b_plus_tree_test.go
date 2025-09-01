@@ -97,12 +97,69 @@ func TestBPlusTree(t *testing.T) {
 		indexIter := bplus.GetIterator()
 		res := []int{}
 		for !indexIter.IsEnd() {
-			val, err := indexIter.Next()
+			_, val, err := indexIter.Next()
 			assert.NoError(t, err)
 			res = append(res, val)
 		}
 
 		assert.Equal(t, res, expected)
+	})
+
+	t.Run("test batch insert", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[string, int]("test", bpm)
+		assert.NoError(t, err)
+
+		register := map[string]int{
+			"john": 25,
+			"doe":  45,
+			"jane": 40,
+		}
+
+		err = bplus.BatchInsert(register)
+		assert.NoError(t, err)
+
+		for k, v := range register {
+			val, err := bplus.GetValue(k)
+
+			assert.NoError(t, err)
+			assert.Equal(t, v, val[0])
+		}
+	})
+
+	t.Run("retrieve items within a range", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[int, int]("test", bpm)
+		assert.NoError(t, err)
+
+		// insert values in reverse order
+		for i := 100; i >= 0; i-- {
+			inserted, err := bplus.Insert(i, i)
+			assert.NoError(t, err)
+			assert.True(t, inserted)
+		}
+
+		// generate control-check that is in-order within a range
+		expected := []int{}
+		start := 30
+		stop := 70
+		for i := start; i <= stop; i++ {
+			expected = append(expected, i)
+		}
+
+		res, err := bplus.GetKeyRange(start, stop)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, res)
 	})
 }
 

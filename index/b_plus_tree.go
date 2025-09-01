@@ -196,11 +196,6 @@ func (b *bplusTree[K, V]) Insert(key K, value V) (bool, error) {
 	}
 	return true, nil
 }
-
-func (b *bplusTree[K, V]) GetIterator() *indexIterator[K, V] {
-	return NewIndexIterator[K, V](b.firstPageId, b.bpm)
-}
-
 func (b *bplusTree[K, V]) insertInParent(leafGuard *buffer.WritePageGuard, newLeafGuard *buffer.WritePageGuard, key K) error {
 	leafPage, _ := buffer.ToStruct[bplusInternalPage[K]](*leafGuard.GetDataMut())
 	newLeafPage, _ := buffer.ToStruct[bplusInternalPage[K]](*newLeafGuard.GetDataMut())
