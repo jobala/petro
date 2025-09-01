@@ -18,31 +18,35 @@ func NewIndexIterator[K cmp.Ordered, V any](pageId int64, bpm *buffer.Bufferpool
 	}
 }
 
-func (it *indexIterator[K, V]) Next() (V, error) {
-	var res V
+func (it *indexIterator[K, V]) Next() (K, V, error) {
+	var key K
+	var val V
 	if it.pos < it.currPage.getSize() {
-		res := it.currPage.valueAt(it.pos)
+		key = it.currPage.keyAt(it.pos)
+		val = it.currPage.valueAt(it.pos)
 		it.pos += 1
 
-		return res, nil
+		return key, val, nil
 	}
 
 	it.pos = 0
 	guard, err := it.bpm.ReadPage(it.currPage.Next)
 	if err != nil {
-		return res, fmt.Errorf("error getting guard for page: %v", err)
+		return key, val, fmt.Errorf("error getting guard for page: %v", err)
 	}
 	defer guard.Drop()
 
 	nextPage, err := buffer.ToStruct[bplusLeafPage[K, V]](guard.GetData())
 	if err != nil {
-		return res, fmt.Errorf("error casting page: %v", err)
+		return key, val, fmt.Errorf("error casting page: %v", err)
 	}
 	it.currPage = nextPage
 
-	res = it.currPage.valueAt(it.pos)
+	key = it.currPage.keyAt(it.pos)
+	val = it.currPage.valueAt(it.pos)
 	it.pos += 1
-	return res, nil
+
+	return key, val, nil
 }
 
 func (it *indexIterator[K, V]) IsEnd() bool {
