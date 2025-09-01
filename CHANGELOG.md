@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/jobala/petro/compare/v1.1.0...v1.2.0) (2025-09-01)
+
+
+### Features
+
+* b+tree GetValue ([#11](https://github.com/jobala/petro/issues/11)) ([6d85fed](https://github.com/jobala/petro/commit/6d85fed65fabaae5f4992b3e15fc62ffd9956e96))
+
+
+### Bug Fixes
+
+* b+tree improvements ([#14](https://github.com/jobala/petro/issues/14)) ([ab99e5f](https://github.com/jobala/petro/commit/ab99e5fff57afac2784f83ce44aa65a4fbb0039b))
+* **index:** make b+tree generic ([#13](https://github.com/jobala/petro/issues/13)) ([f31421b](https://github.com/jobala/petro/commit/f31421b80f3681d36d1b109edf1a6de0ab50d377))
+
 ## [1.1.0](https://github.com/jobala/petro/compare/v1.0.0...v1.1.0) (2025-07-17)
 
 
