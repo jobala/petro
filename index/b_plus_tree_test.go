@@ -105,6 +105,44 @@ func TestBPlusTree(t *testing.T) {
 		assert.Equal(t, res, expected)
 	})
 
+	t.Run("test delete including page splits and page merges", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[int, int]("test", bpm)
+		assert.NoError(t, err)
+
+		for i := 200; i >= 0; i-- {
+			inserted, err := bplus.Put(i, i)
+			assert.NoError(t, err)
+			assert.True(t, inserted)
+		}
+
+		for i := range 100 {
+			ok, err := bplus.Delete(i)
+			if err != nil {
+				assert.NoError(t, err)
+			}
+
+			assert.True(t, ok)
+		}
+
+		indexIter := bplus.GetIterator()
+		res := []int{}
+		for !indexIter.IsEnd() {
+			_, val, err := indexIter.Next()
+			assert.NoError(t, err)
+			res = append(res, val)
+		}
+
+		assert.Equal(t, 101, len(res))
+		assert.Equal(t, 100, res[0])
+		assert.Equal(t, 200, res[len(res)-1])
+	})
+
 	t.Run("test batch insert", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
@@ -142,14 +180,12 @@ func TestBPlusTree(t *testing.T) {
 		bplus, err := NewBplusTree[int, int]("test", bpm)
 		assert.NoError(t, err)
 
-		// insert values in reverse order
 		for i := 100; i >= 0; i-- {
 			inserted, err := bplus.Put(i, i)
 			assert.NoError(t, err)
 			assert.True(t, inserted)
 		}
 
-		// generate control-check that is in-order within a range
 		expected := []int{}
 		start := 30
 		stop := 70
@@ -180,7 +216,6 @@ func CreateDbFile(t *testing.T) *os.File {
 		panic(fmt.Sprintf("failed creating db file\n%v", err))
 	}
 
-	// create 4kb file
 	_ = os.Truncate(file.Name(), disk.PAGE_SIZE)
 	fileInfo, err := os.Stat(file.Name())
 	assert.NoError(t, err)
