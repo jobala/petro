@@ -408,6 +408,684 @@ func (b *bplusTree[K, V]) findLeafPageId(rootPageId int64, key K) (int64, error)
 	}
 }
 
+func (b *bplusTree[K, V]) Delete(key K) (bool, error) {
+	if b.isEmpty() {
+		return false, fmt.Errorf("tree is empty")
+	}
+
+	leafId, err := b.findLeafPageId(b.header.RootPageId, key)
+	if err != nil {
+		return false, err
+	}
+
+	leafGuard, err := b.bpm.WritePage(leafId)
+	if err != nil {
+		return false, err
+	}
+	leafPage, err := buffer.ToStruct[bplusLeafPage[K, V]](*leafGuard.GetDataMut())
+	if err != nil {
+		leafGuard.Drop()
+		return false, err
+	}
+
+	pos := -1
+	for i := 0; i < int(leafPage.Size); i++ {
+		if leafPage.keyAt(i) == key {
+			pos = i
+			break
+		}
+	}
+	if pos == -1 {
+		leafGuard.Drop()
+		return false, fmt.Errorf("key not found: %v", key)
+	}
+
+	leafPage.Keys = slices.Delete(leafPage.Keys, pos, pos+1)
+	leafPage.Values = slices.Delete(leafPage.Values, pos, pos+1)
+	leafPage.Size--
+
+	{
+		data, err := buffer.ToByteSlice(leafPage)
+		if err != nil {
+			leafGuard.Drop()
+			return false, err
+		}
+		copy(*leafGuard.GetDataMut(), data)
+	}
+
+	if leafPage.PageId == b.header.RootPageId {
+		if leafPage.Size == 0 {
+			leafGuard.Drop()
+			if err := b.setRootPageId(disk.INVALID_PAGE_ID); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+		leafGuard.Drop()
+		return true, nil
+	}
+
+	minLeaf := int32(math.Ceil(float64(leafPage.MaxSize) / 2))
+	if leafPage.Size >= minLeaf {
+		leafGuard.Drop()
+		return true, nil
+	}
+
+	parentId := leafPage.Parent
+	leafGuard.Drop()
+	parentGuard, err := b.bpm.WritePage(parentId)
+	if err != nil {
+		return false, err
+	}
+	parentPage, err := buffer.ToStruct[bplusInternalPage[K]](*parentGuard.GetDataMut())
+	if err != nil {
+		parentGuard.Drop()
+		return false, err
+	}
+
+	childIdx := -1
+	for i := 0; i < int(parentPage.Size); i++ {
+		if parentPage.valueAt(i) == leafId {
+			childIdx = i
+			break
+		}
+	}
+	if childIdx == -1 {
+		parentGuard.Drop()
+		return false, fmt.Errorf("leaf %d not found in parent %d", leafId, parentId)
+	}
+
+	loadLeaf := func(id int64) (*buffer.WritePageGuard, *bplusLeafPage[K, V], error) {
+		g, err := b.bpm.WritePage(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		lp, err := buffer.ToStruct[bplusLeafPage[K, V]](*g.GetDataMut())
+		if err != nil {
+			g.Drop()
+			return nil, nil, err
+		}
+		return g, &lp, nil
+	}
+
+	leftId := int64(INVALID_PAGE)
+	rightId := int64(INVALID_PAGE)
+	if childIdx-1 >= 0 {
+		leftId = parentPage.valueAt(childIdx - 1)
+	}
+	if childIdx+1 < int(parentPage.Size) {
+		rightId = parentPage.valueAt(childIdx + 1)
+	}
+
+	tryBorrowOrMerge := func(borrowLeft bool) (bool, error) {
+		var sibId int64
+		var sepKeyIdx int
+		if borrowLeft {
+			if leftId == int64(INVALID_PAGE) {
+				return false, nil
+			}
+			sibId = leftId
+			sepKeyIdx = childIdx
+		} else {
+			if rightId == int64(INVALID_PAGE) {
+				return false, nil
+			}
+			sibId = rightId
+			sepKeyIdx = childIdx + 1
+		}
+
+		firstId, secondId := leafId, sibId
+		firstIsLeaf := true
+		if secondId < firstId {
+			firstId, secondId = secondId, firstId
+			firstIsLeaf = false
+		}
+
+		firstGuard, firstPage, err := loadLeaf(firstId)
+		if err != nil {
+			return false, err
+		}
+		secondGuard, secondPage, err := loadLeaf(secondId)
+		if err != nil {
+			firstGuard.Drop()
+			return false, err
+		}
+
+		var leafG, sibG *buffer.WritePageGuard
+		var leafP, sibP *bplusLeafPage[K, V]
+		if firstIsLeaf {
+			leafG, leafP = firstGuard, firstPage
+			sibG, sibP = secondGuard, secondPage
+		} else {
+			sibG, sibP = firstGuard, firstPage
+			leafG, leafP = secondGuard, secondPage
+		}
+
+		minL := int32(math.Ceil(float64(leafP.MaxSize) / 2))
+		if leafP.Size >= minL {
+			leafData, _ := buffer.ToByteSlice(leafP)
+			copy(*leafG.GetDataMut(), leafData)
+			leafG.Drop()
+			sibG.Drop()
+			return true, nil
+		}
+
+		minSib := int32(math.Ceil(float64(sibP.MaxSize) / 2))
+		if sibP.Size > minSib {
+			if borrowLeft {
+				k := sibP.keyAt(int(sibP.Size) - 1)
+				v := sibP.valueAt(int(sibP.Size) - 1)
+				sibP.Keys = sibP.Keys[:sibP.Size-1]
+				sibP.Values = sibP.Values[:sibP.Size-1]
+				sibP.Size--
+
+				leafP.Keys = slices.Insert(leafP.Keys, 0, k)
+				leafP.Values = slices.Insert(leafP.Values, 0, v)
+				leafP.Size++
+
+				if sepKeyIdx >= 1 && sepKeyIdx < int(parentPage.Size) {
+					parentPage.setKeyAt(sepKeyIdx, leafP.keyAt(0))
+				}
+			} else {
+				k := sibP.keyAt(0)
+				v := sibP.valueAt(0)
+				sibP.Keys = sibP.Keys[1:]
+				sibP.Values = sibP.Values[1:]
+				sibP.Size--
+
+				leafP.Keys = append(leafP.Keys[:leafP.Size], k)
+				leafP.Values = append(leafP.Values[:leafP.Size], v)
+				leafP.Size++
+
+				if sepKeyIdx >= 1 && sepKeyIdx < int(parentPage.Size) && sibP.Size > 0 {
+					parentPage.setKeyAt(sepKeyIdx, sibP.keyAt(0))
+				}
+			}
+
+			if d, err := buffer.ToByteSlice(leafP); err == nil {
+				copy(*leafG.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+			if d, err := buffer.ToByteSlice(sibP); err == nil {
+				copy(*sibG.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+			if d, err := buffer.ToByteSlice(parentPage); err == nil {
+				copy(*parentGuard.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+
+			leafG.Drop()
+			sibG.Drop()
+			return true, nil
+		}
+
+		if borrowLeft {
+			sibP.Keys = append(sibP.Keys[:sibP.Size], leafP.Keys[:leafP.Size]...)
+			sibP.Values = append(sibP.Values[:sibP.Size], leafP.Values[:leafP.Size]...)
+			sibP.Size += leafP.Size
+			sibP.Next = leafP.Next
+
+			parentPage.Keys = slices.Delete(parentPage.Keys, childIdx, childIdx+1)
+			parentPage.Values = slices.Delete(parentPage.Values, childIdx, childIdx+1)
+			parentPage.Size--
+
+			if d, err := buffer.ToByteSlice(sibP); err == nil {
+				copy(*sibG.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+			if d, err := buffer.ToByteSlice(parentPage); err == nil {
+				copy(*parentGuard.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+
+			leafG.Drop()
+			sibG.Drop()
+
+			return true, b.fixInternalAfterDelete(parentGuard)
+		} else {
+			leafP.Keys = append(leafP.Keys[:leafP.Size], sibP.Keys[:sibP.Size]...)
+			leafP.Values = append(leafP.Values[:leafP.Size], sibP.Values[:sibP.Size]...)
+			leafP.Size += sibP.Size
+			leafP.Next = sibP.Next
+
+			parentPage.Keys = slices.Delete(parentPage.Keys, childIdx+1, childIdx+2)
+			parentPage.Values = slices.Delete(parentPage.Values, childIdx+1, childIdx+2)
+			parentPage.Size--
+
+			if d, err := buffer.ToByteSlice(leafP); err == nil {
+				copy(*leafG.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+			if d, err := buffer.ToByteSlice(parentPage); err == nil {
+				copy(*parentGuard.GetDataMut(), d)
+			} else {
+				leafG.Drop()
+				sibG.Drop()
+				return false, err
+			}
+
+			leafG.Drop()
+			sibG.Drop()
+
+			return true, b.fixInternalAfterDelete(parentGuard)
+		}
+	}
+
+	done, err := tryBorrowOrMerge(true)
+	if err != nil {
+		parentGuard.Drop()
+		return false, err
+	}
+	if done {
+		parentGuard.Drop()
+		return true, nil
+	}
+
+	done, err = tryBorrowOrMerge(false)
+	if err != nil {
+		parentGuard.Drop()
+		return false, err
+	}
+	parentGuard.Drop()
+	return done, nil
+}
+
+func (b *bplusTree[K, V]) fixInternalAfterDelete(parentGuard *buffer.WritePageGuard) error {
+	parentPage, err := buffer.ToStruct[bplusInternalPage[K]](*parentGuard.GetDataMut())
+	if err != nil {
+		return err
+	}
+
+	if parentPage.PageId == b.header.RootPageId {
+		if parentPage.Size == 1 {
+			onlyChild := parentPage.valueAt(0)
+			if err := b.setRootPageId(onlyChild); err != nil {
+				return err
+			}
+			childGuard, err := b.bpm.WritePage(onlyChild)
+			if err != nil {
+				return err
+			}
+			childInternal, _ := buffer.ToStruct[bplusInternalPage[K]](*childGuard.GetDataMut())
+			if childInternal.isLeafPage() {
+				childLeaf, _ := buffer.ToStruct[bplusLeafPage[K, any]](*childGuard.GetDataMut())
+				childLeaf.Parent = disk.INVALID_PAGE_ID
+				if d, err := buffer.ToByteSlice(childLeaf); err == nil {
+					copy(*childGuard.GetDataMut(), d)
+				} else {
+					childGuard.Drop()
+					return err
+				}
+			} else {
+				childInternal.Parent = disk.INVALID_PAGE_ID
+				if d, err := buffer.ToByteSlice(childInternal); err == nil {
+					copy(*childGuard.GetDataMut(), d)
+				} else {
+					childGuard.Drop()
+					return err
+				}
+			}
+			childGuard.Drop()
+		}
+		return nil
+	}
+
+	minInternal := int32(math.Ceil(float64(parentPage.MaxSize) / 2))
+	if parentPage.Size >= minInternal {
+		return nil
+	}
+
+	grandId := parentPage.Parent
+	parentId := parentPage.PageId
+
+	parentGuard.Drop()
+
+	grandGuard, err := b.bpm.WritePage(grandId)
+	if err != nil {
+		return err
+	}
+	grandPage, err := buffer.ToStruct[bplusInternalPage[K]](*grandGuard.GetDataMut())
+	if err != nil {
+		grandGuard.Drop()
+		return err
+	}
+
+	idx := -1
+	for i := 0; i < int(grandPage.Size); i++ {
+		if grandPage.valueAt(i) == parentId {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		grandGuard.Drop()
+		return fmt.Errorf("parent %d not found in grandparent %d", parentId, grandId)
+	}
+
+	leftId := int64(INVALID_PAGE)
+	rightId := int64(INVALID_PAGE)
+	if idx-1 >= 0 {
+		leftId = grandPage.valueAt(idx - 1)
+	}
+	if idx+1 < int(grandPage.Size) {
+		rightId = grandPage.valueAt(idx + 1)
+	}
+
+	loadInternal := func(id int64) (*buffer.WritePageGuard, *bplusInternalPage[K], error) {
+		g, err := b.bpm.WritePage(id)
+		if err != nil {
+			return nil, nil, err
+		}
+		p, err := buffer.ToStruct[bplusInternalPage[K]](*g.GetDataMut())
+		if err != nil {
+			g.Drop()
+			return nil, nil, err
+		}
+		return g, &p, nil
+	}
+
+	if leftId != int64(INVALID_PAGE) {
+		firstId, secondId := parentId, leftId
+		firstIsParent := true
+		if secondId < firstId {
+			firstId, secondId = secondId, firstId
+			firstIsParent = false
+		}
+
+		firstG, firstP, err := loadInternal(firstId)
+		if err != nil {
+			grandGuard.Drop()
+			return err
+		}
+		secondG, secondP, err := loadInternal(secondId)
+		if err != nil {
+			firstG.Drop()
+			grandGuard.Drop()
+			return err
+		}
+
+		var parG, sibG *buffer.WritePageGuard
+		var parP, sibP *bplusInternalPage[K]
+		if firstIsParent {
+			parG, parP = firstG, firstP
+			sibG, sibP = secondG, secondP
+		} else {
+			sibG, sibP = firstG, firstP
+			parG, parP = secondG, secondP
+		}
+
+		minSib := int32(math.Ceil(float64(sibP.MaxSize) / 2))
+		if sibP.Size > minSib {
+			sepKeyIdx := idx
+			sepKey := grandPage.keyAt(sepKeyIdx)
+
+			movePtr := sibP.valueAt(int(sibP.Size - 1))
+			sibP.Values = sibP.Values[:sibP.Size-1]
+			lastKeyOfSib := sibP.keyAt(int(sibP.Size - 0))
+			sibP.Keys = sibP.Keys[:int(sibP.Size)]
+			sibP.Size--
+
+			parP.Values = slices.Insert(parP.Values, 0, movePtr)
+			parP.Keys = slices.Insert(parP.Keys, 1, sepKey)
+			parP.Size++
+
+			grandPage.setKeyAt(sepKeyIdx, lastKeyOfSib)
+
+			childG, err := b.bpm.WritePage(movePtr)
+			if err == nil {
+				ci, _ := buffer.ToStruct[bplusInternalPage[K]](*childG.GetDataMut())
+				if ci.isLeafPage() {
+					cl, _ := buffer.ToStruct[bplusLeafPage[K, any]](*childG.GetDataMut())
+					cl.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(cl); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				} else {
+					ci.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(ci); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				}
+				childG.Drop()
+			}
+
+			if d, e := buffer.ToByteSlice(sibP); e == nil {
+				copy(*sibG.GetDataMut(), d)
+			}
+			if d, e := buffer.ToByteSlice(parP); e == nil {
+				copy(*parG.GetDataMut(), d)
+			}
+			if d, e := buffer.ToByteSlice(grandPage); e == nil {
+				copy(*grandGuard.GetDataMut(), d)
+			}
+
+			sibG.Drop()
+			parG.Drop()
+			grandGuard.Drop()
+			return nil
+		}
+
+		sepKeyIdx := idx
+		sepKey := grandPage.keyAt(sepKeyIdx)
+
+		if int(sibP.Size) < len(sibP.Keys) {
+			sibP.setKeyAt(int(sibP.Size), sepKey)
+		} else {
+			sibP.Keys = append(sibP.Keys, sepKey)
+		}
+		sibP.Values = append(sibP.Values[:sibP.Size], parP.Values[:parP.Size]...)
+		if parP.Size > 1 {
+			sibP.Keys = append(sibP.Keys[:int(sibP.Size)+1], parP.Keys[1:int(parP.Size)]...)
+		}
+		oldSize := sibP.Size
+		sibP.Size = sibP.Size + parP.Size
+
+		for i := int(oldSize); i < int(sibP.Size); i++ {
+			ptr := sibP.valueAt(i)
+			childG, err := b.bpm.WritePage(ptr)
+			if err == nil {
+				ci, _ := buffer.ToStruct[bplusInternalPage[K]](*childG.GetDataMut())
+				if ci.isLeafPage() {
+					cl, _ := buffer.ToStruct[bplusLeafPage[K, any]](*childG.GetDataMut())
+					cl.Parent = sibP.PageId
+					if d, e := buffer.ToByteSlice(cl); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				} else {
+					ci.Parent = sibP.PageId
+					if d, e := buffer.ToByteSlice(ci); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				}
+				childG.Drop()
+			}
+		}
+
+		grandPage.Keys = slices.Delete(grandPage.Keys, sepKeyIdx, sepKeyIdx+1)
+		grandPage.Values = slices.Delete(grandPage.Values, idx, idx+1)
+		grandPage.Size--
+
+		if d, e := buffer.ToByteSlice(sibP); e == nil {
+			copy(*sibG.GetDataMut(), d)
+		}
+		if d, e := buffer.ToByteSlice(grandPage); e == nil {
+			copy(*grandGuard.GetDataMut(), d)
+		}
+		sibG.Drop()
+		parG.Drop()
+
+		err = b.fixInternalAfterDelete(grandGuard)
+		grandGuard.Drop()
+		return err
+	}
+
+	if rightId != int64(INVALID_PAGE) {
+		firstId, secondId := parentId, rightId
+		firstIsParent := true
+		if secondId < firstId {
+			firstId, secondId = secondId, firstId
+			firstIsParent = false
+		}
+
+		firstG, firstP, err := loadInternal(firstId)
+		if err != nil {
+			grandGuard.Drop()
+			return err
+		}
+		secondG, secondP, err := loadInternal(secondId)
+		if err != nil {
+			firstG.Drop()
+			grandGuard.Drop()
+			return err
+		}
+
+		var parG, sibG *buffer.WritePageGuard
+		var parP, sibP *bplusInternalPage[K]
+		if firstIsParent {
+			parG, parP = firstG, firstP
+			sibG, sibP = secondG, secondP
+		} else {
+			sibG, sibP = firstG, firstP
+			parG, parP = secondG, secondP
+		}
+
+		minSib := int32(math.Ceil(float64(sibP.MaxSize) / 2))
+		if sibP.Size > minSib {
+			sepKeyIdx := idx + 1
+			sepKey := grandPage.keyAt(sepKeyIdx)
+
+			movePtr := sibP.valueAt(0)
+			var sibFirstKey K
+			if sibP.Size > 1 {
+				sibFirstKey = sibP.keyAt(1)
+			}
+
+			sibP.Values = sibP.Values[1:]
+			if int(sibP.Size) > 1 {
+				sibP.Keys = append(sibP.Keys[:1], sibP.Keys[2:int(sibP.Size)]...)
+			}
+			sibP.Size--
+
+			parP.Values = append(parP.Values[:parP.Size], movePtr)
+			parP.Keys = append(parP.Keys[:int(parP.Size)], sepKey)
+			parP.Size++
+
+			if sibP.Size > 0 {
+				grandPage.setKeyAt(sepKeyIdx, sibFirstKey)
+			}
+
+			childG, err := b.bpm.WritePage(movePtr)
+			if err == nil {
+				ci, _ := buffer.ToStruct[bplusInternalPage[K]](*childG.GetDataMut())
+				if ci.isLeafPage() {
+					cl, _ := buffer.ToStruct[bplusLeafPage[K, any]](*childG.GetDataMut())
+					cl.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(cl); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				} else {
+					ci.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(ci); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				}
+				childG.Drop()
+			}
+
+			if d, e := buffer.ToByteSlice(sibP); e == nil {
+				copy(*sibG.GetDataMut(), d)
+			}
+			if d, e := buffer.ToByteSlice(parP); e == nil {
+				copy(*parG.GetDataMut(), d)
+			}
+			if d, e := buffer.ToByteSlice(grandPage); e == nil {
+				copy(*grandGuard.GetDataMut(), d)
+			}
+
+			sibG.Drop()
+			parG.Drop()
+			grandGuard.Drop()
+			return nil
+		}
+
+		sepKeyIdx := idx + 1
+		sepKey := grandPage.keyAt(sepKeyIdx)
+
+		if int(parP.Size) < len(parP.Keys) {
+			parP.setKeyAt(int(parP.Size), sepKey)
+		} else {
+			parP.Keys = append(parP.Keys, sepKey)
+		}
+		parP.Values = append(parP.Values[:parP.Size], sibP.Values[:sibP.Size]...)
+		if sibP.Size > 1 {
+			parP.Keys = append(parP.Keys[:int(parP.Size)+1], sibP.Keys[1:int(sibP.Size)]...)
+		}
+		oldSize := parP.Size
+		parP.Size = parP.Size + sibP.Size
+
+		for i := int(oldSize); i < int(parP.Size); i++ {
+			ptr := parP.valueAt(i)
+			childG, err := b.bpm.WritePage(ptr)
+			if err == nil {
+				ci, _ := buffer.ToStruct[bplusInternalPage[K]](*childG.GetDataMut())
+				if ci.isLeafPage() {
+					cl, _ := buffer.ToStruct[bplusLeafPage[K, any]](*childG.GetDataMut())
+					cl.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(cl); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				} else {
+					ci.Parent = parP.PageId
+					if d, e := buffer.ToByteSlice(ci); e == nil {
+						copy(*childG.GetDataMut(), d)
+					}
+				}
+				childG.Drop()
+			}
+		}
+
+		grandPage.Keys = slices.Delete(grandPage.Keys, sepKeyIdx, sepKeyIdx+1)
+		grandPage.Values = slices.Delete(grandPage.Values, idx+1, idx+2)
+		grandPage.Size--
+
+		if d, e := buffer.ToByteSlice(parP); e == nil {
+			copy(*parG.GetDataMut(), d)
+		}
+		if d, e := buffer.ToByteSlice(grandPage); e == nil {
+			copy(*grandGuard.GetDataMut(), d)
+		}
+
+		sibG.Drop()
+		parG.Drop()
+
+		err = b.fixInternalAfterDelete(grandGuard)
+		grandGuard.Drop()
+		return err
+	}
+
+	grandGuard.Drop()
+	return nil
+}
+
 func (b *bplusTree[K, V]) isEmpty() bool {
 	// TODO: use appropriate variable name
 	return b.header.RootPageId == 0
