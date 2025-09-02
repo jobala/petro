@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/jobala/petro/compare/v1.3.1...v1.4.0) (2025-09-02)
+
+
+### Features
+
+* b+tree delete ([#23](https://github.com/jobala/petro/issues/23)) ([20d4c44](https://github.com/jobala/petro/commit/20d4c442815305c192bb9a624c3836c4575de3e8))
+
 ## [1.3.1](https://github.com/jobala/petro/compare/v1.3.0...v1.3.1) (2025-09-01)
 
 
