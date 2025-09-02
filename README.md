@@ -22,6 +22,13 @@ store := index.New[string, int]("index", dbFile)
 val, err := store.Get("age")
 ```
 
+### Delete
+
+```go
+store := index.New[string, int]("index", dbFile)
+val, err := store.Delete("age")
+```
+
 ### PutBatch
 
 ```go
