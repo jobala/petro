@@ -34,6 +34,10 @@ func NewBplusTree[K cmp.Ordered, V any](name string, bpm *buffer.BufferpoolManag
 }
 
 func (b *bplusTree[K, V]) Get(key K) ([]V, error) {
+	if b.isEmpty() {
+		return nil, fmt.Errorf("store is empty")
+	}
+
 	res := make([]V, 0)
 	leafPageId, err := b.findLeafPageId(b.header.RootPageId, key)
 	if err != nil {
@@ -53,7 +57,11 @@ func (b *bplusTree[K, V]) Get(key K) ([]V, error) {
 	}
 
 	valIdx := leafPage.getInsertIdx(key)
-	if valIdx < 0 || valIdx >= leafPage.getSize() {
+	if leafPage.Keys[valIdx] != key {
+		return nil, fmt.Errorf("key not found: %v", key)
+	}
+
+	if leafPage.getSize() > 0 && valIdx < 0 || valIdx >= leafPage.getSize() {
 		return nil, fmt.Errorf("key not found: %v", key)
 	}
 
@@ -410,7 +418,7 @@ func (b *bplusTree[K, V]) findLeafPageId(rootPageId int64, key K) (int64, error)
 
 func (b *bplusTree[K, V]) Delete(key K) (bool, error) {
 	if b.isEmpty() {
-		return false, fmt.Errorf("tree is empty")
+		return false, fmt.Errorf("store is empty")
 	}
 
 	leafId, err := b.findLeafPageId(b.header.RootPageId, key)

@@ -197,6 +197,57 @@ func TestBPlusTree(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, expected, res)
 	})
+
+	t.Run("try getting a key from an emtpy store", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[string, int]("test", bpm)
+		assert.NoError(t, err)
+
+		_, err = bplus.Get("notfound")
+		assert.NotErrorIs(t, err, fmt.Errorf("store is empty"))
+	})
+
+	t.Run("try getting a deleted key", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[string, int]("test", bpm)
+		assert.NoError(t, err)
+
+		_, err = bplus.Put("John", 25)
+		assert.NoError(t, err)
+		_, err = bplus.Put("Doe", 30)
+		assert.NoError(t, err)
+
+		_, err = bplus.Delete("Doe")
+		assert.NoError(t, err)
+
+		_, err = bplus.Get("Doe")
+		assert.NotErrorIs(t, err, fmt.Errorf("key not found"))
+	})
+
+	t.Run("try deleting from an empty index", func(t *testing.T) {
+		file := CreateDbFile(t)
+		t.Cleanup(func() {
+			_ = os.Remove(file.Name())
+		})
+
+		bpm := createBpm(file)
+		bplus, err := NewBplusTree[string, int]("test", bpm)
+		assert.NoError(t, err)
+
+		_, err = bplus.Delete("notfound")
+		assert.NotErrorIs(t, err, fmt.Errorf("store is empty"))
+
+	})
 }
 
 func createBpm(file *os.File) *buffer.BufferpoolManager {
