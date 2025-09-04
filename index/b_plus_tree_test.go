@@ -12,7 +12,7 @@ import (
 )
 
 func TestBPlusTree(t *testing.T) {
-	t.Run("stored values can be retrieved", func(t *testing.T) {
+	t.Run("can store and retrieve values", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -43,7 +43,7 @@ func TestBPlusTree(t *testing.T) {
 
 	})
 
-	t.Run("can store items larger than page's max size", func(t *testing.T) {
+	t.Run("stores values in more than a single leaf page", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -70,7 +70,7 @@ func TestBPlusTree(t *testing.T) {
 		}
 	})
 
-	t.Run("values are stored in order", func(t *testing.T) {
+	t.Run("stores values in order", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -105,7 +105,7 @@ func TestBPlusTree(t *testing.T) {
 		assert.Equal(t, res, expected)
 	})
 
-	t.Run("test delete including page splits and page merges", func(t *testing.T) {
+	t.Run("deletions merge leaf pages", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -143,7 +143,7 @@ func TestBPlusTree(t *testing.T) {
 		assert.Equal(t, 200, res[len(res)-1])
 	})
 
-	t.Run("test batch insert", func(t *testing.T) {
+	t.Run("batch insert", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -170,7 +170,7 @@ func TestBPlusTree(t *testing.T) {
 		}
 	})
 
-	t.Run("retrieve items within a range", func(t *testing.T) {
+	t.Run("range queries", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -198,7 +198,7 @@ func TestBPlusTree(t *testing.T) {
 		assert.Equal(t, expected, res)
 	})
 
-	t.Run("try getting a key from an emtpy store", func(t *testing.T) {
+	t.Run("handles get queries on an empty store", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -212,7 +212,7 @@ func TestBPlusTree(t *testing.T) {
 		assert.NotErrorIs(t, err, fmt.Errorf("store is empty"))
 	})
 
-	t.Run("try getting a deleted key", func(t *testing.T) {
+	t.Run("handles getting a deleted key", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
@@ -234,7 +234,7 @@ func TestBPlusTree(t *testing.T) {
 		assert.NotErrorIs(t, err, fmt.Errorf("key not found"))
 	})
 
-	t.Run("try deleting from an empty index", func(t *testing.T) {
+	t.Run("handles deleting from an empty store", func(t *testing.T) {
 		file := CreateDbFile(t)
 		t.Cleanup(func() {
 			_ = os.Remove(file.Name())
