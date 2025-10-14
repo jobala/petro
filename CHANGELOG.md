@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/jobala/petro/compare/v1.4.0...v1.4.1) (2025-09-04)
+
+
+### Bug Fixes
+
+* test names ([7cfd8da](https://github.com/jobala/petro/commit/7cfd8da7924c694fd46f20aee8f0f9896d03a386))
+
 ## [1.4.0](https://github.com/jobala/petro/compare/v1.3.1...v1.4.0) (2025-09-02)
 
 
